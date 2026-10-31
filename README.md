@@ -54,4 +54,4 @@ npm test   # needs Node 18+
 | `js/store.js` | localStorage, spaced repetition, stats |
 | `js/app.js` | UI |
 | `sw.js`, `manifest.webmanifest` | offline + install |
-| `tools/make_icons.py` | regenerates the PNG icons |
+| `icons/icon.svg` | the crest icon; `node tools/render_icons.mjs` re-renders the PNGs (needs Playwright) |

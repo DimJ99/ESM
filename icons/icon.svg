@@ -1,1 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#0d0f14"/><circle cx="206" cy="256" r="112" fill="#5b8cff"/><circle cx="306" cy="256" r="112" fill="#f0444f" fill-opacity=".88"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- ESM icon: tricolour with the Serbian cross-and-ocila and the Macedonian sun.
+       Source of truth for the PNGs — re-render with: node tools/render_icons.mjs -->
+  <defs>
+    <clipPath id="frame"><rect width="512" height="512" rx="112"/></clipPath>
+    <clipPath id="sl"><path d="M84 158H244V272Q244 334 164 354Q84 334 84 272Z"/></clipPath>
+    <clipPath id="sr"><path d="M268 158H428V272Q428 334 348 354Q268 334 268 272Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect width="512" height="171" fill="#1f5fd6"/>
+    <rect y="171" width="512" height="170" fill="#f4f4f2"/>
+    <rect y="341" width="512" height="171" fill="#d7261e"/>
+
+    <g clip-path="url(#sl)">
+      <rect x="84" y="158" width="160" height="196" fill="#c8102e"/>
+      <rect x="149" y="158" width="30" height="196" fill="#fff"/>
+      <rect x="84" y="227" width="160" height="30" fill="#fff"/>
+      <g fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"><path d="M105.6 179.4A17 17 0 1 1 105.6 205.6"/><path d="M222.4 179.4A17 17 0 1 0 222.4 205.6"/><path d="M105.6 281.9A17 17 0 1 1 105.6 308.1"/><path d="M222.4 281.9A17 17 0 1 0 222.4 308.1"/></g>
+    </g>
+    <path d="M84 158H244V272Q244 334 164 354Q84 334 84 272Z" fill="none" stroke="#f2c230" stroke-width="9"/>
+
+    <g clip-path="url(#sr)">
+      <rect x="268" y="158" width="160" height="196" fill="#d20000"/>
+      <path fill="#ffd900" d="M348.0 246.0L320.2 88.4L375.8 88.4ZM348.0 246.0L439.8 114.9L479.1 154.2ZM348.0 246.0L505.6 218.2L505.6 273.8ZM348.0 246.0L479.1 337.8L439.8 377.1ZM348.0 246.0L375.8 403.6L320.2 403.6ZM348.0 246.0L256.2 377.1L216.9 337.8ZM348.0 246.0L190.4 273.8L190.4 218.2ZM348.0 246.0L216.9 154.2L256.2 114.9Z"/>
+      <circle cx="348" cy="246" r="28" fill="#d20000"/>
+      <circle cx="348" cy="246" r="22" fill="#ffd900"/>
+    </g>
+    <path d="M268 158H428V272Q428 334 348 354Q268 334 268 272Z" fill="none" stroke="#f2c230" stroke-width="9"/>
+  </g>
+</svg>
