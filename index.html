@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ESM · Verbs</title>
+  <meta name="description" content="Serbian & Macedonian verb conjugation practice">
+  <meta name="theme-color" content="#0d0f14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ESM">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="b-e">E</span><span class="b-s">S</span><span class="b-m">M</span></div>
+    <div class="session" id="session" aria-live="polite"></div>
+  </header>
+
+  <main>
+    <!-- PRACTICE -->
+    <section class="view" id="view-practice">
+      <div class="seg langpick" id="langpick">
+        <button data-l="sr">Srpski</button>
+        <button data-l="mix">Mix</button>
+        <button data-l="mk">Македонски</button>
+      </div>
+
+      <div class="card" id="card">
+        <div class="chips" id="chips"></div>
+        <hr>
+        <div class="word" id="word"></div>
+        <button type="button" class="hint-pill" id="hint-btn"></button>
+        <hr>
+
+        <form id="answer-form" autocomplete="off">
+          <input id="answer" type="text" inputmode="text" autocapitalize="off" autocorrect="off"
+                 spellcheck="false" enterkeyhint="go" placeholder="type the form…" aria-label="Your answer">
+          <button type="submit" class="btn primary" id="submit">Check</button>
+        </form>
+
+        <div class="keys" id="keys"></div>
+
+        <div class="feedback" id="feedback" hidden>
+          <div class="fb-head" id="fb-head"></div>
+          <div class="fb-answer" id="fb-answer"></div>
+          <div class="fb-detail" id="fb-detail"></div>
+        </div>
+
+        <div class="actions" id="actions">
+          <button type="button" class="btn ghost" id="reveal-btn">Show answer</button>
+        </div>
+      </div>
+      <p class="empty" id="empty" hidden>Nothing to practise — turn on at least one tense and form in Settings.</p>
+    </section>
+
+    <!-- STATS -->
+    <section class="view" id="view-stats" hidden>
+      <div class="seg" id="stats-window">
+        <button data-w="session" class="on">Session</button>
+        <button data-w="1">Today</button>
+        <button data-w="7">7 days</button>
+        <button data-w="0">All time</button>
+      </div>
+      <div id="stats-body"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="view-settings" hidden>
+      <div class="panel">
+        <h2>Tenses</h2>
+        <label class="row"><span>Present</span><input type="checkbox" data-set="tenses" value="pres"></label>
+        <label class="row"><span>Past</span><input type="checkbox" data-set="tenses" value="past"></label>
+        <label class="row"><span>Future</span><input type="checkbox" data-set="tenses" value="fut"></label>
+      </div>
+      <div class="panel">
+        <h2>Forms</h2>
+        <label class="row"><span>Affirmative<small>čitam · читам</small></span><input type="checkbox" data-set="polarity" value="pos"></label>
+        <label class="row"><span>Negative<small>ne čitam, nisam čitao · не читам, нема да читам</small></span><input type="checkbox" data-set="polarity" value="neg"></label>
+      </div>
+      <div class="panel">
+        <h2>Checking</h2>
+        <label class="row"><span>Forgive missing special letters<small>“citam” counts, but is tracked</small></span><input type="checkbox" data-set="lenient"></label>
+        <label class="row"><span>Include “ono” in the past<small>neuter 3rd person singular</small></span><input type="checkbox" data-set="includeNeuter"></label>
+      </div>
+      <div class="panel">
+        <h2>App</h2>
+        <button class="btn wide" id="install-btn" hidden>Install on this device</button>
+        <p class="note" id="ios-note" hidden>On iPhone: tap <b>Share</b> → <b>Add to Home Screen</b>.</p>
+        <button class="btn wide" id="export-btn">Back up progress</button>
+        <label class="btn wide file">Restore from backup<input type="file" id="import-file" accept="application/json,.json" hidden></label>
+        <button class="btn wide danger" id="reset-btn">Reset all progress &amp; stats</button>
+        <p class="note">Progress is stored on this device only. Back it up now and then.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs" id="tabs">
+    <button data-view="practice" class="on"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg>Practice</button>
+    <button data-view="stats"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Stats</button>
+    <button data-view="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button>
+  </nav>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

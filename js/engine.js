@@ -1,0 +1,223 @@
+// Conjugation tables, answer checking and mistake classification.
+import { VERBS } from './verbs.js';
+
+export const LANGS = {
+  sr: { name: 'Srpski', short: 'SR', tag: 'sr-Latn',
+        pronouns: [['ja'], ['ti'], ['on', 'ona', 'ono'], ['mi'], ['vi'], ['oni', 'one']],
+        en: [['I'], ['you'], ['he', 'she', 'it'], ['we'], ['you all'], ['they', 'they']],
+        neg: 'ne',
+        hintLabel: 'infinitiv',
+        extraKeys: ['č', 'ć', 'š', 'ž', 'đ', 'dž'] },
+  mk: { name: 'Македонски', short: 'МК', tag: 'mk',
+        pronouns: [['јас'], ['ти'], ['тој', 'таа', 'тоа'], ['ние'], ['вие'], ['тие']],
+        en: [['I'], ['you'], ['he', 'she', 'it'], ['we'], ['you all'], ['they']],
+        neg: 'не',
+        hintLabel: 'речнички облик',
+        extraKeys: ['ѓ', 'ќ', 'ѕ', 'љ', 'њ', 'џ', 'ј', 'ќе'] },
+};
+
+export const TENSES = {
+  pres: { en: 'present', sr: 'prezent', mk: 'сегашно време' },
+  past: { en: 'past', sr: 'perfekat', mk: 'минато несвршено' },
+  fut:  { en: 'future', sr: 'futur I', mk: 'идно време' },
+};
+
+export const PERSON_LABELS = ['1sg', '2sg', '3sg', '1pl', '2pl', '3pl'];
+export const GENDER_TAG = { m: 'M', f: 'F', n: 'N' };
+
+export const ERROR_TYPES = {
+  diacritics: 'Special letters (č ć š ž đ / ѓ ќ ѕ)',
+  gender:     'Wrong gender',
+  person:     'Wrong person (ja / ti / on…)',
+  tense:      'Wrong tense',
+  language:   'Mixed up SR ↔ MK',
+  auxiliary:  'Missing auxiliary (sam / si / je…)',
+  ke:         'Missing ќе',
+  negation:   'Negation (ne / nisam / neću / нема да)',
+  verb:       'Wrong verb',
+  spelling:   'Spelling / stem',
+  blank:      'Gave up (blank)',
+  other:      'Other',
+};
+
+export const VERB_BY_ID = Object.fromEntries(VERBS.map(v => [v.id, v]));
+
+const SR_AUX = ['sam', 'si', 'je', 'smo', 'ste', 'su'];
+const SR_FUT_AUX = ['ću', 'ćeš', 'će', 'ćemo', 'ćete', 'će'];
+const SR_NEG_AUX = ['nisam', 'nisi', 'nije', 'nismo', 'niste', 'nisu'];
+const SR_NEG_FUT = ['neću', 'nećeš', 'neće', 'nećemo', 'nećete', 'neće'];
+const words = s => s.split(' ');
+
+// Which genders get their own prompt, per person. Only the Serbian past is gendered.
+export function gendersFor(lang, tense, person, includeNeuter) {
+  if (lang !== 'sr' || tense !== 'past') return [null];
+  if (person === 2) return includeNeuter ? ['m', 'f', 'n'] : ['m', 'f'];
+  return ['m', 'f'];
+}
+
+function srParticiple(sr, person, gender) {
+  const [masc, fem] = words(sr.past);
+  const stem = fem.slice(0, -1); // "čitala" -> "čital"
+  if (person < 3) return gender === 'm' ? masc : gender === 'f' ? fem : stem + 'o';
+  return gender === 'f' ? stem + 'e' : stem + 'i';
+}
+
+function srFuture(sr, person) {
+  const first = sr.fut || (sr.inf.endsWith('ći') ? sr.inf + ' ću' : sr.inf.slice(0, -2) + 'ću');
+  return first.slice(0, -2) + SR_FUT_AUX[person];
+}
+
+// All accepted answers for one cell, primary form first.
+// Negation: SR "ne čitam" / "nisam čitao" / "neću čitati" (nisam, nemam, neću fused);
+// MK "не читам" / "не читав" / "нема да читам" (нема- fused for има).
+export function formsFor(verb, lang, tense, person, gender, neg = false) {
+  if (lang === 'sr') {
+    const sr = verb.sr;
+    if (tense === 'pres') {
+      if (neg) return [sr.negPres ? words(sr.negPres)[person] : 'ne ' + words(sr.pres)[person]];
+      const out = [words(sr.pres)[person]];
+      if (sr.presAlt) out.push(words(sr.presAlt)[person]);
+      return out;
+    }
+    if (tense === 'past') {
+      const part = srParticiple(sr, person, gender || 'm');
+      if (neg) return [`${SR_NEG_AUX[person]} ${part}`];
+      return [`${part} ${SR_AUX[person]}`, `${SR_AUX[person]} ${part}`];
+    }
+    if (neg) return [`${SR_NEG_FUT[person]} ${sr.inf}`];
+    return [srFuture(sr, person), `${SR_FUT_AUX[person]} ${sr.inf}`];
+  }
+  const mk = verb.mk;
+  const no = (fused, plain) => neg ? (fused ? words(fused)[person] : 'не ' + plain) : plain;
+  if (tense === 'pres') return [no(mk.negPres, words(mk.pres)[person])];
+  if (tense === 'past') return [no(mk.negPast, words(mk.past)[person])];
+  return [(neg ? 'нема да ' : 'ќе ') + words(mk.fut || mk.pres)[person]];
+}
+
+export function hintFor(verb, lang) {
+  return lang === 'sr' ? verb.sr.inf : (verb.mk.dict || words(verb.mk.pres)[2]);
+}
+
+// Every cell of a verb in one language — used for decoding mistakes.
+function cellsFor(verb, lang) {
+  const out = [];
+  for (const tense of Object.keys(TENSES))
+    for (let p = 0; p < 6; p++)
+      for (const g of gendersFor(lang, tense, p, true))
+        for (const neg of [false, true])
+          out.push({ lang, tense, person: p, gender: g, neg, forms: formsFor(verb, lang, tense, p, g, neg) });
+  return out;
+}
+
+export function normalize(s) {
+  return s.normalize('NFC').toLowerCase()
+    .replace(/[.,!?;:"'«»„“”]/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+const LOOSE = { č: 'c', ć: 'c', š: 's', ž: 'z', đ: 'd', ѓ: 'г', ќ: 'к', ѕ: 'з', ѐ: 'е', ѝ: 'и' };
+export function loose(s) {
+  return s.replace(/dj/g, 'd').replace(/[čćšžđѓќѕѐѝ]/g, c => LOOSE[c]);
+}
+
+// "ja čitam" -> "čitam". Only strips when something follows the pronoun.
+function stripPronoun(s, lang) {
+  const parts = s.split(' ');
+  if (parts.length < 2) return s;
+  const all = LANGS[lang].pronouns.flat();
+  return all.includes(parts[0]) ? parts.slice(1).join(' ') : s;
+}
+
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1,
+        d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+
+// Find which cell (if any) the answer actually belongs to and name the mistake.
+function classify(item, ans, match) {
+  const verb = VERB_BY_ID[item.verbId];
+  const neg = !!item.neg;
+  const own = cellsFor(verb, item.lang);
+  const hits = own.filter(c => c.forms.some(f => match(f)));
+  const sameCell = c => c.tense === item.tense && c.person === item.person;
+  if (item.lang === 'mk' && item.tense === 'fut' && hits.some(c => c.tense === 'pres')) return neg ? 'negation' : 'ke';
+  if (hits.some(c => sameCell(c) && c.gender === item.gender)) return 'negation'; // right form, wrong polarity
+  if (hits.some(c => sameCell(c) && c.neg === neg)) return 'gender';
+  if (hits.some(sameCell)) return 'negation';
+  if (hits.some(c => c.tense === item.tense)) return 'person';
+  if (hits.length) return 'tense';
+
+  // Negation built the wrong way: "ne čitao sam", "ne ću čitati", "не ќе читам"
+  const rest = ans.match(/^(?:ne|не) (.+)$/)?.[1];
+  if (neg && rest && own.some(c => !c.neg && c.tense === item.tense &&
+      c.forms.some(f => f === rest || loose(f) === loose(rest)))) return 'negation';
+
+  const other = item.lang === 'sr' ? 'mk' : 'sr';
+  if (cellsFor(verb, other).some(c => c.forms.some(f => match(f)))) return 'language';
+
+  if (item.lang === 'sr' && item.tense === 'past' && ['m', 'f', 'n'].some(g => {
+    const part = srParticiple(verb.sr, item.person, g);
+    return match(part) || match('ne ' + part);
+  })) return 'auxiliary';
+
+  for (const v of Object.values(VERB_BY_ID)) {
+    if (v === verb || v[item.lang].pres === verb[item.lang].pres) continue;
+    if (formsFor(v, item.lang, item.tense, item.person, item.gender, neg).some(f => match(f))) return 'verb';
+  }
+  return null;
+}
+
+// result: 'correct' | 'close' (right apart from special letters, lenient mode) | 'wrong'
+export function check(item, rawAnswer, { lenient }) {
+  const verb = VERB_BY_ID[item.verbId];
+  const accepted = formsFor(verb, item.lang, item.tense, item.person, item.gender, item.neg);
+  const expected = accepted[0];
+  const ans = stripPronoun(normalize(rawAnswer), item.lang);
+
+  if (!ans) return { result: 'wrong', error: 'blank', expected, accepted };
+  if (accepted.includes(ans)) return { result: 'correct', error: null, expected, accepted };
+  if (accepted.some(f => loose(f) === loose(ans)))
+    return { result: lenient ? 'close' : 'wrong', error: 'diacritics', expected, accepted };
+
+  const error = classify(item, ans, f => f === ans)
+    || classify(item, ans, f => loose(f) === loose(ans))
+    || (Math.min(...accepted.map(f => editDistance(f, ans))) <= 2 ? 'spelling' : 'other');
+  return { result: 'wrong', error, expected, accepted };
+}
+
+export function itemKey(item) {
+  return `${item.lang}|${item.verbId}|${item.tense}|${item.person}|${item.gender || '-'}${item.neg ? '|neg' : ''}`;
+}
+
+export function buildPool({ langs, tenses, polarity, includeNeuter }) {
+  const pool = [];
+  for (const lang of langs)
+    for (const verb of VERBS)
+      for (const tense of tenses)
+        for (let p = 0; p < 6; p++)
+          for (const g of gendersFor(lang, tense, p, includeNeuter))
+            for (const pol of polarity)
+              pool.push({ lang, verbId: verb.id, tense, person: p, gender: g, neg: pol === 'neg' });
+  return pool;
+}
+
+// Pronoun shown in the prompt (native + English). Gender-specific in the Serbian
+// past; otherwise a random choice for 3rd person so on/ona/ono all show up.
+export function pronounFor(item) {
+  const L = LANGS[item.lang];
+  const opts = L.pronouns[item.person];
+  let i = 0;
+  if (item.gender) {
+    if (item.person === 2) i = { m: 0, f: 1, n: 2 }[item.gender];
+    if (item.person === 5) i = item.gender === 'f' ? 1 : 0;
+  } else {
+    i = Math.floor(Math.random() * opts.length);
+  }
+  const en = L.en[item.person];
+  return { text: opts[i], en: en[Math.min(i, en.length - 1)], tag: item.gender ? GENDER_TAG[item.gender] : '' };
+}
