@@ -15,44 +15,4 @@ progress stays on the device.
   missing auxiliary / ќе, negation, aspect, special letters, SR↔MK mix-up, wrong verb, spelling —
   and weights practice toward what you miss (simple spaced repetition)
 
-## Run locally
-
-```sh
-python3 -m http.server 8000   # then open http://localhost:8000
-```
-
-## Put it on your phone
-
-Install needs HTTPS, so host it — GitHub Pages is free and easiest:
-
-1. Push this repo to GitHub.
-2. Repo **Settings → Pages → Deploy from branch → `main` / root**.
-3. Open `https://<user>.github.io/<repo>/` on the phone.
-   - Android/Chrome: Settings tab → **Install on this device** (or menu → Install app).
-   - iPhone/Safari: **Share → Add to Home Screen**.
-
-Tip: add the Macedonian keyboard on your phone (Gboard / iOS both have it); the
-letter bar in the app covers the special characters either way.
-
-Progress lives in the browser's storage on that device — use **Back up progress**
-in Settings now and then.
-
-## Adding verbs
-
-Edit [js/verbs.js](js/verbs.js) — one entry per meaning with full tables, so
-everything is easy to proofread. Then run the tests, which check every entry's shape:
-
-```sh
-npm test   # needs Node 18+
-```
-
-## Layout
-
-| File | What |
-|---|---|
-| `js/verbs.js` | verb data |
-| `js/engine.js` | conjugation tables, answer checking, mistake decoding |
-| `js/store.js` | localStorage, spaced repetition, stats |
-| `js/app.js` | UI |
-| `sw.js`, `manifest.webmanifest` | offline + install |
-| `icons/icon.svg` | the crest icon; `node tools/render_icons.mjs` re-renders the PNGs (needs Playwright) |
+Plans to add Nouns and Sentances!
