@@ -29,6 +29,11 @@ export const ASPECTS = {
 
 export const PERSON_LABELS = ['1sg', '2sg', '3sg', '1pl', '2pl', '3pl'];
 export const GENDER_TAG = { m: 'M', f: 'F', n: 'N' };
+export const GENDERS = {
+  m: { en: 'masculine', sr: 'muški rod' },
+  f: { en: 'feminine', sr: 'ženski rod' },
+  n: { en: 'neuter', sr: 'srednji rod' },
+};
 
 export const ERROR_TYPES = {
   diacritics: 'Special letters (č ć š ž đ / ѓ ќ ѕ)',

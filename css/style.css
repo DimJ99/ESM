@@ -12,6 +12,13 @@
   --pres: #1fbcab;
   --past: #a27ff7;
   --fut: #f28a2e;
+  /* personal pronouns: ja ti on mi vi oni (validated for colour-blind separation) */
+  --p0: #f2c94c;
+  --p1: #6fcf97;
+  --p2: #f2994a;
+  --p3: #56ccf2;
+  --p4: #bb6bd9;
+  --p5: #ff7fa8;
   --g-m: #59c3ff;
   --g-f: #ff86c8;
   --g-n: #b8bfcc;
@@ -86,6 +93,13 @@ main { max-width: 560px; margin: 0 auto; padding: 8px 16px 24px; }
 [data-tense="pres"] { --t: var(--pres); }
 [data-tense="past"] { --t: var(--past); }
 [data-tense="fut"]  { --t: var(--fut); }
+[data-person="0"] { --p: var(--p0); }
+[data-person="1"] { --p: var(--p1); }
+[data-person="2"] { --p: var(--p2); }
+[data-person="3"] { --p: var(--p3); }
+[data-person="4"] { --p: var(--p4); }
+[data-person="5"] { --p: var(--p5); }
+.pron { color: var(--p); font-weight: 800; }
 [data-g="m"] { --g: var(--g-m); }
 [data-g="f"] { --g: var(--g-f); }
 [data-g="n"] { --g: var(--g-n); }
@@ -99,16 +113,20 @@ main { max-width: 560px; margin: 0 auto; padding: 8px 16px 24px; }
   background: color-mix(in srgb, #000 22%, transparent);
 }
 .chip b { font-weight: 800; }
-.chip small { color: color-mix(in srgb, var(--text) 70%, transparent); font-size: 12.5px; font-weight: 500; }
+/* English is always plain white; colour carries the grammar (tense, pronoun, gender) */
+.chip .eng { color: var(--text); font-weight: 700; }
+.chip small { color: color-mix(in srgb, var(--text) 65%, transparent); font-size: 12.5px; font-weight: 500; }
+.chip .dot { margin: 0; }
 .chip.lang { background: var(--accent); border-color: transparent; color: #0d0f14; font-weight: 800; letter-spacing: .06em; }
 .chip.tense { border-color: var(--t); }
-.chip.tense b { color: var(--t); }
-.chip.person[data-g] { border-color: var(--g); }
-.chip.pol.pos small { color: var(--muted); }
+.chip.person { border-color: var(--p); }
+.chip.person .pron { font-size: 15px; }
+.chip.gender { border-color: var(--g); }
+.chip.pol.pos { border-color: color-mix(in srgb, #fff 18%, transparent); }
+.chip.pol.pos .eng { font-weight: 500; }
+.chip.pol.neg { border: 2px solid #fff; background: color-mix(in srgb, #fff 14%, transparent); }
 .chip.aspect { border-style: dashed; }
 .chip.aspect.pf { border-style: solid; border-color: #fff; }
-.chip.pol.neg { background: #fff; border-color: #fff; color: #0d0f14; }
-.chip.pol.neg small { color: #0d0f14; opacity: .7; }
 
 .word {
   text-align: center; color: #fff;
@@ -229,7 +247,7 @@ form { display: flex; gap: 8px; }
 .bars .fill { height: 100%; border-radius: 4px; background: var(--bar); }
 .bars .val { flex: none; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bars .val b { color: var(--text); }
-.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--t); margin-right: 7px; vertical-align: 1px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--p, var(--t)); margin-right: 7px; vertical-align: 1px; flex: none; }
 .tchip { color: var(--t); font-weight: 700; }
 
 .session-bar {

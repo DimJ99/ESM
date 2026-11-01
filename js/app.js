@@ -1,4 +1,4 @@
-import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, VERB_BY_ID, check, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
+import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
 import * as store from './store.js';
 
 const $ = id => document.getElementById(id);
@@ -29,16 +29,17 @@ function next() {
   document.body.style.setProperty('--accent', `var(--${item.lang})`);
 
   const pr = current.pronoun;
-  const gTag = item.gender ? `<span class="gbadge" data-g="${item.gender}">${pr.tag}</span>` : '';
   $('chips').innerHTML = [
     state.settings.langs.length > 1 && `<span class="chip lang">${lang.short}</span>`,
-    `<span class="chip tense" data-tense="${item.tense}"><b>${TENSES[item.tense].en}</b><small>${tenseLabel(item.lang, item.tense, item.aspect)}</small></span>`,
-    `<span class="chip person"${item.gender ? ` data-g="${item.gender}"` : ''}>${gTag}<b>${esc(pr.text)}</b><small>${esc(pr.en)}</small></span>`,
+    `<span class="chip tense" data-tense="${item.tense}"><i class="dot"></i><span class="eng">${TENSES[item.tense].en}</span><small>${tenseLabel(item.lang, item.tense, item.aspect)}</small></span>`,
+    `<span class="chip person" data-person="${item.person}"><b class="pron">${esc(pr.text)}</b><span class="eng">${esc(pr.en)}</span></span>`,
+    item.gender &&
+      `<span class="chip gender" data-g="${item.gender}"><span class="gbadge" data-g="${item.gender}">${pr.tag}</span><span class="eng">${GENDERS[item.gender].en}</span></span>`,
     verb[item.lang]?.pf &&
-      `<span class="chip aspect ${item.aspect}"><b>${ASPECTS[item.aspect].en}</b><small>${ASPECTS[item.aspect][item.lang]}</small></span>`,
+      `<span class="chip aspect ${item.aspect}"><span class="eng">${ASPECTS[item.aspect].en}</span><small>${ASPECTS[item.aspect][item.lang]}</small></span>`,
     item.neg
-      ? `<span class="chip pol neg"><b>negative</b><small>${lang.neg}</small></span>`
-      : `<span class="chip pol pos">affirmative</span>`,
+      ? `<span class="chip pol neg"><span class="eng">negative</span><b>${lang.neg}</b></span>`
+      : `<span class="chip pol pos"><span class="eng">affirmative</span></span>`,
   ].filter(Boolean).join('');
   $('word').textContent = promptFor(verb, item.aspect);
   $('hint-btn').className = 'hint-pill';
@@ -105,7 +106,7 @@ function submit(reveal = false) {
   const fb = $('feedback');
   fb.className = 'feedback ' + cls;
   $('fb-head').textContent = head;
-  $('fb-answer').textContent = `${current.pronoun.text} ${outcome.expected}`;
+  $('fb-answer').innerHTML = `<span class="pron" data-person="${current.item.person}">${esc(current.pronoun.text)}</span> ${esc(outcome.expected)}`;
   $('fb-detail').innerHTML = lines.join('<br>') + (tags ? `<div>${tags}</div>` : '');
   fb.hidden = false;
 
@@ -238,7 +239,10 @@ function renderStats() {
 
   const personLabels = { '1sg': 'ja / јас', '2sg': 'ti / ти', '3sg': 'on / тој', '1pl': 'mi / ние', '2pl': 'vi / вие', '3pl': 'oni / тие' };
   html += `<div class="panel"><h2>Accuracy by person</h2>` +
-    bars(Object.entries(personLabels).map(([k, label]) => accRow(label, s.byPerson.get(k))), { fmt: accFmt }) + `</div>`;
+    bars(Object.entries(personLabels).map(([k, label], i) => ({
+      ...accRow(`<span class="dot" data-person="${i}"></span>${label}`, s.byPerson.get(k)),
+      color: `var(--p${i})`,
+    })), { fmt: accFmt }) + `</div>`;
 
   if (s.weakVerbs.length) {
     html += `<div class="panel"><h2>Weakest verbs</h2><p class="sub">at least 3 attempts</p>` +
@@ -260,7 +264,7 @@ function renderStats() {
       const pron = LANGS[m.l].pronouns[m.p][m.g === 'f' && (m.p === 2 || m.p === 5) ? 1 : m.g === 'n' ? 2 : 0];
       const gtag = m.g ? ` <span class="gbadge sm" data-g="${m.g}">${GENDER_TAG[m.g]}</span>` : '';
       const exp = check(item, '', state.settings).expected;
-      return `<li><div class="q"><span class="l ${m.l}">${LANGS[m.l].short}</span> · ${esc(promptFor(v, item.aspect))} · <span class="tchip" data-tense="${m.te}">${TENSES[m.te].en}</span>${m.pf ? ' · <b>pf</b>' : ''}${m.n ? ` · <b>${LANGS[m.l].neg}</b>` : ''} · ${esc(pron)}${gtag}</div>
+      return `<li><div class="q"><span class="l ${m.l}">${LANGS[m.l].short}</span> · ${esc(promptFor(v, item.aspect))} · <span class="tchip" data-tense="${m.te}">${TENSES[m.te].en}</span>${m.pf ? ' · <b>pf</b>' : ''}${m.n ? ` · <b>${LANGS[m.l].neg}</b>` : ''} · <span class="pron" data-person="${m.p}">${esc(pron)}</span>${gtag}</div>
         <div class="a">${m.a ? `<s>${esc(m.a)}</s> → ` : ''}<b>${esc(exp)}</b> <span class="tag">${ERROR_TYPES[m.e] || ''}</span></div></li>`;
     }).join('')}</ul></div>`;
   }
