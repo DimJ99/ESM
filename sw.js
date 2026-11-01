@@ -1,5 +1,5 @@
 // Offline support. The shell is precached on install so the app opens offline.
-const VERSION = 'esm-v4';
+const VERSION = 'esm-v5';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/app.js', 'js/engine.js', 'js/store.js', 'js/verbs.js',
@@ -29,6 +29,7 @@ self.addEventListener('fetch', e => {
     return res;
   };
   e.respondWith(sameOrigin
-    ? fetch(e.request).then(put).catch(() => caches.match(e.request, { ignoreSearch: true }))
+    // no-cache: always revalidate with the server, so the browser's HTTP cache can't serve stale files
+    ? fetch(e.request, { cache: 'no-cache' }).then(put).catch(() => caches.match(e.request, { ignoreSearch: true }))
     : caches.match(e.request).then(hit => hit || fetch(e.request).then(put)));
 });
