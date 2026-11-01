@@ -16,4 +16,4 @@ progress stays on the device.
   and weights practice toward what you miss (simple spaced repetition)
 
 Plans to add Nouns and Sentances!
-For Konstantina <3
+За Константина <3
