@@ -1,4 +1,4 @@
-import { LANGS, TENSES, ERROR_TYPES, GENDER_TAG, VERB_BY_ID, check, hintFor, pronounFor } from './engine.js';
+import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, VERB_BY_ID, check, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
 import * as store from './store.js';
 
 const $ = id => document.getElementById(id);
@@ -32,13 +32,15 @@ function next() {
   const gTag = item.gender ? `<span class="gbadge" data-g="${item.gender}">${pr.tag}</span>` : '';
   $('chips').innerHTML = [
     state.settings.langs.length > 1 && `<span class="chip lang">${lang.short}</span>`,
-    `<span class="chip tense" data-tense="${item.tense}"><b>${TENSES[item.tense].en}</b><small>${TENSES[item.tense][item.lang]}</small></span>`,
+    `<span class="chip tense" data-tense="${item.tense}"><b>${TENSES[item.tense].en}</b><small>${tenseLabel(item.lang, item.tense, item.aspect)}</small></span>`,
     `<span class="chip person"${item.gender ? ` data-g="${item.gender}"` : ''}>${gTag}<b>${esc(pr.text)}</b><small>${esc(pr.en)}</small></span>`,
+    verb[item.lang]?.pf &&
+      `<span class="chip aspect ${item.aspect}"><b>${ASPECTS[item.aspect].en}</b><small>${ASPECTS[item.aspect][item.lang]}</small></span>`,
     item.neg
       ? `<span class="chip pol neg"><b>negative</b><small>${lang.neg}</small></span>`
       : `<span class="chip pol pos">affirmative</span>`,
   ].filter(Boolean).join('');
-  $('word').textContent = verb.en;
+  $('word').textContent = promptFor(verb, item.aspect);
   $('hint-btn').className = 'hint-pill';
   $('hint-btn').textContent = item.lang === 'sr' ? 'Hint: show infinitive' : 'Hint: show dictionary form';
   $('feedback').hidden = true;
@@ -62,7 +64,7 @@ function showHint() {
   if (answered || !current) return;
   hinted = true;
   const { item } = current;
-  $('hint-btn').innerHTML = `${LANGS[item.lang].hintLabel} · <b>${esc(hintFor(VERB_BY_ID[item.verbId], item.lang))}</b>`;
+  $('hint-btn').innerHTML = `${LANGS[item.lang].hintLabel} · <b>${esc(hintFor(VERB_BY_ID[item.verbId], item.lang, item.aspect))}</b>`;
   $('hint-btn').classList.add('shown');
   $('hint-btn').disabled = true;
   $('answer').focus({ preventScroll: true });
@@ -228,6 +230,12 @@ function renderStats() {
     bars([accRow('affirmative <small>čitam · читам</small>', s.byPolarity.get('pos')),
           accRow('negative <small>ne čitam · не читам</small>', s.byPolarity.get('neg'))], { fmt: accFmt }) + `</div>`;
 
+  if (s.byAspect.has('pf')) {
+    html += `<div class="panel"><h2>Imperfective vs perfective</h2><p class="sub">past &amp; future</p>` +
+      bars([accRow('imperfective <small>čitao sam · читав</small>', s.byAspect.get('impf')),
+            accRow('perfective <small>pročitao sam · прочитав</small>', s.byAspect.get('pf'))], { fmt: accFmt }) + `</div>`;
+  }
+
   const personLabels = { '1sg': 'ja / јас', '2sg': 'ti / ти', '3sg': 'on / тој', '1pl': 'mi / ние', '2pl': 'vi / вие', '3pl': 'oni / тие' };
   html += `<div class="panel"><h2>Accuracy by person</h2>` +
     bars(Object.entries(personLabels).map(([k, label]) => accRow(label, s.byPerson.get(k))), { fmt: accFmt }) + `</div>`;
@@ -236,7 +244,7 @@ function renderStats() {
     html += `<div class="panel"><h2>Weakest verbs</h2><p class="sub">at least 3 attempts</p>` +
       bars(s.weakVerbs.map(w => {
         const v = VERB_BY_ID[w.v];
-        return { label: `${esc(v.sr.inf)} / ${esc(hintFor(v, 'mk'))} <small>${esc(v.en.replace(/^to /, ''))}</small>`, value: w.acc, n: w.n };
+        return { label: `${esc(hintFor(v, 'sr'))} / ${v.mk ? esc(hintFor(v, 'mk')) : '—'} <small>${esc(v.en.replace(/^to /, ''))}</small>`, value: w.acc, n: w.n };
       }), { fmt: accFmt }) + `</div>`;
   }
 
@@ -248,11 +256,11 @@ function renderStats() {
     html += `<div class="panel"><h2>Recent mistakes</h2><ul class="mistakes">${s.mistakes.map(m => {
       const v = VERB_BY_ID[m.v];
       if (!v) return '';
-      const item = { lang: m.l, verbId: m.v, tense: m.te, person: m.p, gender: m.g, neg: !!m.n };
+      const item = { lang: m.l, verbId: m.v, tense: m.te, person: m.p, gender: m.g, neg: !!m.n, aspect: m.pf ? 'pf' : 'impf' };
       const pron = LANGS[m.l].pronouns[m.p][m.g === 'f' && (m.p === 2 || m.p === 5) ? 1 : m.g === 'n' ? 2 : 0];
       const gtag = m.g ? ` <span class="gbadge sm" data-g="${m.g}">${GENDER_TAG[m.g]}</span>` : '';
       const exp = check(item, '', state.settings).expected;
-      return `<li><div class="q"><span class="l ${m.l}">${LANGS[m.l].short}</span> · ${esc(v.en)} · <span class="tchip" data-tense="${m.te}">${TENSES[m.te].en}</span>${m.n ? ` · <b>${LANGS[m.l].neg}</b>` : ''} · ${esc(pron)}${gtag}</div>
+      return `<li><div class="q"><span class="l ${m.l}">${LANGS[m.l].short}</span> · ${esc(promptFor(v, item.aspect))} · <span class="tchip" data-tense="${m.te}">${TENSES[m.te].en}</span>${m.pf ? ' · <b>pf</b>' : ''}${m.n ? ` · <b>${LANGS[m.l].neg}</b>` : ''} · ${esc(pron)}${gtag}</div>
         <div class="a">${m.a ? `<s>${esc(m.a)}</s> → ` : ''}<b>${esc(exp)}</b> <span class="tag">${ERROR_TYPES[m.e] || ''}</span></div></li>`;
     }).join('')}</ul></div>`;
   }

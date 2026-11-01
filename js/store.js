@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
   langs: ['sr', 'mk'],
   tenses: ['pres', 'past', 'fut'],
   polarity: ['pos', 'neg'],
+  aspects: ['impf', 'pf'],
   lenient: true,
   includeNeuter: false,
 };
@@ -47,7 +48,7 @@ export function record(state, item, outcome, answer, hinted) {
 
   state.attempts.push({
     t: Date.now(), l: item.lang, v: item.verbId, te: item.tense, p: item.person,
-    g: item.gender, n: item.neg ? 1 : 0, ok: outcome.result === 'wrong' ? 0 : outcome.result === 'close' ? 2 : 1,
+    g: item.gender, n: item.neg ? 1 : 0, pf: item.aspect === 'pf' ? 1 : 0, ok: outcome.result === 'wrong' ? 0 : outcome.result === 'close' ? 2 : 1,
     e: outcome.error, a: answer.slice(0, 60), h: hinted ? 1 : 0,
   });
   save(state);
@@ -128,6 +129,8 @@ export function stats(state, window) {
     byPerson: tally(list, a => PERSON_LABELS[a.p]),
     byLang: tally(list, a => a.l),
     byPolarity: tally(list, a => a.n ? 'neg' : 'pos'),
+    // aspect is only drilled in past & future
+    byAspect: tally(list.filter(a => a.te !== 'pres'), a => a.pf ? 'pf' : 'impf'),
     weakVerbs: verbs.slice(0, 8),
     mistakes: list.filter(a => !a.ok).slice(-15).reverse(),
     boxes,

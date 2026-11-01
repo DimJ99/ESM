@@ -18,8 +18,13 @@ export const LANGS = {
 
 export const TENSES = {
   pres: { en: 'present', sr: 'prezent', mk: 'сегашно време' },
-  past: { en: 'past', sr: 'perfekat', mk: 'минато несвршено' },
+  past: { en: 'past', sr: 'perfekat', mk: 'минато време' },
   fut:  { en: 'future', sr: 'futur I', mk: 'идно време' },
+};
+
+export const ASPECTS = {
+  impf: { en: 'imperfective', sr: 'nesvršeni', mk: 'несвршен' },
+  pf:   { en: 'perfective', sr: 'svršeni', mk: 'свршен' },
 };
 
 export const PERSON_LABELS = ['1sg', '2sg', '3sg', '1pl', '2pl', '3pl'];
@@ -34,6 +39,7 @@ export const ERROR_TYPES = {
   auxiliary:  'Missing auxiliary (sam / si / je…)',
   ke:         'Missing ќе',
   negation:   'Negation (ne / nisam / neću / нема да)',
+  aspect:     'Wrong aspect (čitao ↔ pročitao)',
   verb:       'Wrong verb',
   spelling:   'Spelling / stem',
   blank:      'Gave up (blank)',
@@ -67,45 +73,89 @@ function srFuture(sr, person) {
   return first.slice(0, -2) + SR_FUT_AUX[person];
 }
 
+// The Serbian verb for an aspect: the perfective partner shares "se" with the imperfective.
+function srVerb(verb, aspect) {
+  return aspect === 'pf' ? { ...verb.sr.pf, refl: verb.sr.refl } : verb.sr;
+}
+
+// Macedonian perfective past is the aorist (прочитав); imperfective past the imperfect (читав).
+function mkVerb(verb, aspect) {
+  return aspect === 'pf' ? verb.mk.pf : verb.mk;
+}
+
+export function hasLang(verb, lang, aspect = 'impf') {
+  if (lang === 'mk') return !!verb.mk && (aspect === 'impf' || !!verb.mk.pf);
+  return aspect === 'impf' || !!verb.sr.pf;
+}
+
+// Native tense name for the chip — the Macedonian past differs by aspect.
+export function tenseLabel(lang, tense, aspect = 'impf') {
+  if (lang === 'mk' && tense === 'past') return aspect === 'pf' ? 'минато свршено' : 'минато несвршено';
+  return TENSES[tense][lang];
+}
+
 // All accepted answers for one cell, primary form first.
 // Negation: SR "ne čitam" / "nisam čitao" / "neću čitati" (nisam, nemam, neću fused);
 // MK "не читам" / "не читав" / "нема да читам" (нема- fused for има).
-export function formsFor(verb, lang, tense, person, gender, neg = false) {
+// Reflexive: SR "budim se", "budio sam se", but "budio se" (je drops), "neću se buditi";
+// MK "се будам", "не се будам", "ќе се будам". Pronoun-first word orders ("ja se budim")
+// arrive here with the pronoun stripped, so "se budim" is accepted too.
+export function formsFor(verb, lang, tense, person, gender, neg = false, aspect = 'impf') {
   if (lang === 'sr') {
-    const sr = verb.sr;
+    const sr = srVerb(verb, aspect);
+    const r = sr.refl;
     if (tense === 'pres') {
-      if (neg) return [sr.negPres ? words(sr.negPres)[person] : 'ne ' + words(sr.pres)[person]];
+      if (neg) {
+        const b = words(sr.pres)[person];
+        if (sr.negPres) return [words(sr.negPres)[person]];
+        return r ? [`ne ${b} se`, `se ne ${b}`] : ['ne ' + b];
+      }
       const out = [words(sr.pres)[person]];
       if (sr.presAlt) out.push(words(sr.presAlt)[person]);
-      return out;
+      return r ? out.flatMap(b => [`${b} se`, `se ${b}`]) : out;
     }
     if (tense === 'past') {
       const part = srParticiple(sr, person, gender || 'm');
-      if (neg) return [`${SR_NEG_AUX[person]} ${part}`];
-      return [`${part} ${SR_AUX[person]}`, `${SR_AUX[person]} ${part}`];
+      const aux = SR_AUX[person], naux = SR_NEG_AUX[person];
+      if (neg) return r ? [`${naux} se ${part}`, `se ${naux} ${part}`] : [`${naux} ${part}`];
+      if (!r) return [`${part} ${aux}`, `${aux} ${part}`];
+      return person === 2 ? [`${part} se`, `se ${part}`] : [`${part} ${aux} se`, `${aux} se ${part}`];
     }
-    if (neg) return [`${SR_NEG_FUT[person]} ${sr.inf}`];
-    return [srFuture(sr, person), `${SR_FUT_AUX[person]} ${sr.inf}`];
+    const se = r ? 'se ' : '';
+    if (neg) return r ? [`${SR_NEG_FUT[person]} se ${sr.inf}`, `se ${SR_NEG_FUT[person]} ${sr.inf}`] : [`${SR_NEG_FUT[person]} ${sr.inf}`];
+    return [srFuture(sr, person) + (r ? ' se' : ''), `${SR_FUT_AUX[person]} ${se}${sr.inf}`];
   }
-  const mk = verb.mk;
-  const no = (fused, plain) => neg ? (fused ? words(fused)[person] : 'не ' + plain) : plain;
+  const mk = mkVerb(verb, aspect);
+  const se = mk.refl ? 'се ' : '';
+  const no = (fused, plain) => neg ? (fused && !se ? words(fused)[person] : 'не ' + se + plain) : se + plain;
   if (tense === 'pres') return [no(mk.negPres, words(mk.pres)[person])];
   if (tense === 'past') return [no(mk.negPast, words(mk.past)[person])];
-  return [(neg ? 'нема да ' : 'ќе ') + words(mk.fut || mk.pres)[person]];
+  return [(neg ? 'нема да ' : 'ќе ') + se + words(mk.fut || mk.pres)[person]];
 }
 
-export function hintFor(verb, lang) {
-  return lang === 'sr' ? verb.sr.inf : (verb.mk.dict || words(verb.mk.pres)[2]);
+export function hintFor(verb, lang, aspect = 'impf') {
+  if (lang === 'sr') {
+    const sr = srVerb(verb, aspect);
+    return sr.inf + (sr.refl ? ' se' : '');
+  }
+  const mk = mkVerb(verb, aspect);
+  return (mk.refl ? 'се ' : '') + (mk.dict || words(mk.pres)[2]);
+}
+
+export function promptFor(verb, aspect = 'impf') {
+  return aspect === 'pf' && verb.enPf ? verb.enPf : verb.en;
 }
 
 // Every cell of a verb in one language — used for decoding mistakes.
 function cellsFor(verb, lang) {
   const out = [];
-  for (const tense of Object.keys(TENSES))
-    for (let p = 0; p < 6; p++)
-      for (const g of gendersFor(lang, tense, p, true))
-        for (const neg of [false, true])
-          out.push({ lang, tense, person: p, gender: g, neg, forms: formsFor(verb, lang, tense, p, g, neg) });
+  for (const aspect of ['impf', 'pf'].filter(a => hasLang(verb, lang, a)))
+    for (const tense of Object.keys(TENSES))
+      for (let p = 0; p < 6; p++)
+        for (const g of gendersFor(lang, tense, p, true))
+          for (const neg of [false, true])
+            out.push({ lang, tense, person: p, gender: g, neg, aspect,
+                       forms: formsFor(verb, lang, tense, p, g, neg, aspect) });
   return out;
 }
 
@@ -142,8 +192,13 @@ function editDistance(a, b) {
 function classify(item, ans, match) {
   const verb = VERB_BY_ID[item.verbId];
   const neg = !!item.neg;
-  const own = cellsFor(verb, item.lang);
-  const hits = own.filter(c => c.forms.some(f => match(f)));
+  const aspect = item.aspect || 'impf';
+  const all = cellsFor(verb, item.lang);
+  const allHits = all.filter(c => c.forms.some(f => match(f)));
+  // The other aspect of the same verb — "čitao sam" when "pročitao sam" was wanted.
+  const own = all.filter(c => c.aspect === aspect);
+  const hits = allHits.filter(c => c.aspect === aspect);
+  if (!hits.length && allHits.length) return 'aspect';
   const sameCell = c => c.tense === item.tense && c.person === item.person;
   if (item.lang === 'mk' && item.tense === 'fut' && hits.some(c => c.tense === 'pres')) return neg ? 'negation' : 'ke';
   if (hits.some(c => sameCell(c) && c.gender === item.gender)) return 'negation'; // right form, wrong polarity
@@ -166,8 +221,8 @@ function classify(item, ans, match) {
   })) return 'auxiliary';
 
   for (const v of Object.values(VERB_BY_ID)) {
-    if (v === verb || v[item.lang].pres === verb[item.lang].pres) continue;
-    if (formsFor(v, item.lang, item.tense, item.person, item.gender, neg).some(f => match(f))) return 'verb';
+    if (v === verb || !hasLang(v, item.lang, aspect) || v[item.lang].pres === verb[item.lang].pres) continue;
+    if (formsFor(v, item.lang, item.tense, item.person, item.gender, neg, aspect).some(f => match(f))) return 'verb';
   }
   return null;
 }
@@ -175,7 +230,7 @@ function classify(item, ans, match) {
 // result: 'correct' | 'close' (right apart from special letters, lenient mode) | 'wrong'
 export function check(item, rawAnswer, { lenient }) {
   const verb = VERB_BY_ID[item.verbId];
-  const accepted = formsFor(verb, item.lang, item.tense, item.person, item.gender, item.neg);
+  const accepted = formsFor(verb, item.lang, item.tense, item.person, item.gender, item.neg, item.aspect);
   const expected = accepted[0];
   const ans = stripPronoun(normalize(rawAnswer), item.lang);
 
@@ -191,18 +246,23 @@ export function check(item, rawAnswer, { lenient }) {
 }
 
 export function itemKey(item) {
-  return `${item.lang}|${item.verbId}|${item.tense}|${item.person}|${item.gender || '-'}${item.neg ? '|neg' : ''}`;
+  return `${item.lang}|${item.verbId}|${item.tense}|${item.person}|${item.gender || '-'}${item.neg ? '|neg' : ''}${item.aspect === 'pf' ? '|pf' : ''}`;
 }
 
-export function buildPool({ langs, tenses, polarity, includeNeuter }) {
+// Perfective is drilled in past and future only — a bare perfective present only
+// shows up after da / ako (SR) or да / ќе / ако (MK).
+export function buildPool({ langs, tenses, polarity, aspects = ['impf', 'pf'], includeNeuter }) {
   const pool = [];
   for (const lang of langs)
     for (const verb of VERBS)
-      for (const tense of tenses)
-        for (let p = 0; p < 6; p++)
-          for (const g of gendersFor(lang, tense, p, includeNeuter))
-            for (const pol of polarity)
-              pool.push({ lang, verbId: verb.id, tense, person: p, gender: g, neg: pol === 'neg' });
+      for (const aspect of aspects)
+        if (hasLang(verb, lang, aspect))
+          for (const tense of tenses)
+            if (aspect === 'impf' || tense !== 'pres')
+              for (let p = 0; p < 6; p++)
+                for (const g of gendersFor(lang, tense, p, includeNeuter))
+                  for (const pol of polarity)
+                    pool.push({ lang, verbId: verb.id, tense, person: p, gender: g, neg: pol === 'neg', aspect });
   return pool;
 }
 

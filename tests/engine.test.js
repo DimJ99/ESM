@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { VERBS } from '../js/verbs.js';
-import { formsFor, check, buildPool, hintFor, VERB_BY_ID } from '../js/engine.js';
+import { formsFor, check, buildPool, hintFor, promptFor, VERB_BY_ID } from '../js/engine.js';
 
 const six = s => s && s.split(' ').length === 6;
 const item = (lang, verbId, tense, person, gender = null, neg = false) => ({ lang, verbId, tense, person, gender, neg });
 const neg = (lang, verbId, tense, person, gender = null) => item(lang, verbId, tense, person, gender, true);
+const pf = (verbId, tense, person, gender = null, n = false) => ({ ...item('sr', verbId, tense, person, gender, n), aspect: 'pf' });
 const run = (it, ans, lenient = true) => check(it, ans, { lenient });
 
 test('verb data is well-formed', () => {
@@ -14,6 +15,12 @@ test('verb data is well-formed', () => {
     assert.ok(!ids.has(v.id), `duplicate id ${v.id}`);
     ids.add(v.id);
     assert.ok(six(v.sr.pres), `${v.id} sr.pres`);
+    if (v.sr.pf) {
+      assert.ok(six(v.sr.pf.pres), `${v.id} sr.pf.pres`);
+      assert.match(v.sr.pf.past, /^\S+o \S+la$/, `${v.id} sr.pf.past`);
+      assert.match(v.sr.pf.inf, /(ti|ći)$/, `${v.id} sr.pf.inf`);
+    }
+    if (!v.mk) continue;
     if (v.sr.presAlt) assert.ok(six(v.sr.presAlt), `${v.id} sr.presAlt`);
     assert.match(v.sr.past, /^\S+o \S+la$/, `${v.id} sr.past should be "masc fem"`);
     assert.match(v.sr.inf, /(ti|ći)$/, `${v.id} sr.inf`);
@@ -23,9 +30,19 @@ test('verb data is well-formed', () => {
     if (v.mk.fut) assert.ok(six(v.mk.fut), `${v.id} mk.fut`);
     for (const k of ['negPres']) if (v.sr[k]) assert.ok(six(v.sr[k]), `${v.id} sr.${k}`);
     for (const k of ['negPres', 'negPast']) if (v.mk[k]) assert.ok(six(v.mk[k]), `${v.id} mk.${k}`);
+    if (v.mk.pf) {
+      assert.ok(v.mk.pf.dict, `${v.id} mk.pf.dict`);
+      assert.ok(six(v.mk.pf.pres), `${v.id} mk.pf.pres`);
+      assert.ok(six(v.mk.pf.past), `${v.id} mk.pf.past`);
+      assert.doesNotMatch(v.mk.pf.pres + v.mk.pf.past, /[a-z]/i, `${v.id} mk.pf must be Cyrillic`);
+      assert.equal(!!v.mk.pf.refl, !!v.mk.refl, `${v.id} mk.pf.refl should match`);
+    }
     assert.doesNotMatch(v.mk.pres + v.mk.past, /[a-z]/i, `${v.id} mk must be Cyrillic`);
   }
-  assert.equal(VERBS.length, 50);
+  assert.equal(VERBS.length, 74);
+  assert.equal(VERBS.filter(v => v.sr.pf).length, 59);
+  assert.equal(VERBS.filter(v => v.mk?.pf).length, 61);
+  assert.equal(VERBS.filter(v => v.mk).length, 74);
 });
 
 test('serbian forms', () => {
@@ -120,8 +137,74 @@ test('decodes negation mistakes', () => {
   assert.equal(err(neg('sr', 'read', 'pres', 0), 'ne čitaš'), 'person');
 });
 
-test('pool size', () => {
-  const all = buildPool({ langs: ['sr', 'mk'], tenses: ['pres', 'past', 'fut'], polarity: ['pos', 'neg'], includeNeuter: false });
-  // per polarity — sr: 50*(6 + 12 + 6), mk: 50*18
-  assert.equal(all.length, 2 * (50 * 24 + 50 * 18));
+test('perfective forms', () => {
+  const f = (v, tense, p, g, n = false) => formsFor(VERB_BY_ID[v], 'sr', tense, p, g, n, 'pf')[0];
+  assert.equal(f('read', 'past', 0, 'm'), 'pročitao sam');
+  assert.equal(f('read', 'fut', 0), 'pročitaću');
+  assert.equal(f('read', 'fut', 0, null, true), 'neću pročitati');
+  assert.equal(f('come', 'fut', 3), 'doći ćemo');
+  assert.equal(f('sit', 'fut', 0), 'sešću');
+  assert.equal(f('eat', 'fut', 1), 'poješćeš');
+  assert.equal(f('help', 'past', 1, 'f'), 'pomogla si');
+  assert.equal(hintFor(VERB_BY_ID.read, 'sr', 'pf'), 'pročitati');
+  assert.equal(promptFor(VERB_BY_ID.sleep, 'pf'), 'to fall asleep');
+  assert.equal(promptFor(VERB_BY_ID.read, 'pf'), 'to read');
+});
+
+test('reflexive forms', () => {
+  const w = VERB_BY_ID.wake;
+  assert.deepEqual(formsFor(w, 'sr', 'pres', 0), ['budim se', 'se budim']);
+  assert.equal(formsFor(w, 'sr', 'past', 2, 'm')[0], 'budio se');           // je drops
+  assert.equal(formsFor(w, 'sr', 'past', 0, 'f')[0], 'budila sam se');
+  assert.equal(formsFor(w, 'sr', 'past', 0, 'm', true)[0], 'nisam se budio');
+  assert.deepEqual(formsFor(w, 'sr', 'fut', 0), ['budiću se', 'ću se buditi']);
+  assert.equal(formsFor(w, 'sr', 'fut', 0, null, true)[0], 'neću se buditi');
+  assert.equal(formsFor(w, 'sr', 'past', 0, 'm', false, 'pf')[0], 'probudio sam se');
+  assert.equal(hintFor(w, 'sr', 'pf'), 'probuditi se');
+  assert.equal(formsFor(w, 'mk', 'pres', 0)[0], 'се будам');
+  assert.equal(formsFor(w, 'mk', 'pres', 0, null, true)[0], 'не се будам');
+  assert.equal(formsFor(w, 'mk', 'past', 0)[0], 'се будев');
+  assert.equal(formsFor(w, 'mk', 'fut', 0)[0], 'ќе се будам');
+  assert.equal(formsFor(w, 'mk', 'fut', 0, null, true)[0], 'нема да се будам');
+  assert.equal(hintFor(w, 'mk'), 'се буди');
+  assert.equal(run(item('sr', 'wake', 'pres', 0), 'ja se budim').result, 'correct');
+  assert.equal(run(item('sr', 'wake', 'past', 2, 'f'), 'ona se budila').result, 'correct');
+  assert.equal(run(neg('sr', 'wake', 'past', 2, 'm'), 'on se nije budio').result, 'correct');
+  assert.equal(run(item('mk', 'return', 'fut', 3), 'ние ќе се враќаме').result, 'correct');
+});
+
+test('macedonian perfective forms', () => {
+  const f = (v, tense, p, n = false) => formsFor(VERB_BY_ID[v], 'mk', tense, p, null, n, 'pf')[0];
+  assert.equal(f('read', 'past', 0), 'прочитав');
+  assert.equal(f('read', 'past', 2), 'прочита');
+  assert.equal(f('come', 'past', 5), 'дојдоа');
+  assert.equal(f('read', 'fut', 3), 'ќе прочитаме');
+  assert.equal(f('read', 'past', 0, true), 'не прочитав');
+  assert.equal(f('read', 'fut', 0, true), 'нема да прочитам');
+  assert.equal(f('wake', 'past', 0), 'се разбудив');
+  assert.equal(f('wake', 'fut', 0, true), 'нема да се разбудам');
+  assert.equal(f('hear', 'past', 0), 'чув');
+  assert.equal(hintFor(VERB_BY_ID.read, 'mk', 'pf'), 'прочита');
+  assert.equal(hintFor(VERB_BY_ID.return, 'mk', 'pf'), 'се врати');
+  assert.equal(hintFor(VERB_BY_ID.see, 'mk'), 'гледа');
+  const mpf = (v, tense, p) => ({ ...item('mk', v, tense, p), aspect: 'pf' });
+  assert.equal(run(mpf('read', 'past', 0), 'јас прочитав').result, 'correct');
+  assert.equal(run(mpf('read', 'past', 0), 'читав').error, 'aspect');
+  assert.equal(run(item('mk', 'buy', 'fut', 0), 'ќе купам').error, 'aspect');
+});
+
+test('decodes aspect mistakes', () => {
+  assert.equal(run(pf('read', 'past', 0, 'm'), 'čitao sam').error, 'aspect');
+  assert.equal(run(item('sr', 'read', 'past', 0, 'm'), 'pročitao sam').error, 'aspect');
+  assert.equal(run(pf('buy', 'fut', 0), 'kupovaću').error, 'aspect');
+  assert.equal(run(pf('read', 'past', 0, 'm'), 'pročitao si').error, 'person');
+});
+
+test('pool', () => {
+  const all = buildPool({ langs: ['sr', 'mk'], tenses: ['pres', 'past', 'fut'], polarity: ['pos', 'neg'], aspects: ['impf', 'pf'], includeNeuter: false });
+  // per polarity — sr impf: 74*(6+12+6), sr pf: 59*(12+6), mk impf: 74*18, mk pf: 61*(6+6)
+  assert.equal(all.length, 2 * (74 * 24 + 59 * 18 + 74 * 18 + 61 * 12));
+  assert.ok(!all.some(i => i.aspect === 'pf' && i.tense === 'pres'));
+  const pfOnly = buildPool({ langs: ['sr'], tenses: ['past'], polarity: ['pos'], aspects: ['pf'], includeNeuter: false });
+  assert.equal(pfOnly.length, 59 * 12);
 });
