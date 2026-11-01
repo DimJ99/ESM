@@ -1,4 +1,4 @@
-import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, formsFor, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
+import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, formsFor, groupTag, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
 import * as store from './store.js';
 import { pickNext, skillName, SKILL_KINDS, MASTERED_DAYS, LEECH_LAPSES, TARGET } from './srs.js';
 
@@ -69,7 +69,8 @@ function showHint() {
   if (answered || !current) return;
   hinted = true;
   const { item } = current;
-  $('hint-btn').innerHTML = `${LANGS[item.lang].hintLabel} · <b>${esc(hintFor(VERB_BY_ID[item.verbId], item.lang, item.aspect))}</b>`;
+  const verb = VERB_BY_ID[item.verbId];
+  $('hint-btn').innerHTML = `${LANGS[item.lang].hintLabel} · <b>${esc(hintFor(verb, item.lang, item.aspect))}</b> ${groupTag(verb, item.lang, item.aspect)}`;
   $('hint-btn').classList.add('shown');
   $('hint-btn').disabled = true;
   $('answer').focus({ preventScroll: true });
@@ -133,7 +134,7 @@ function conjTable(item) {
   const pron = (p, text) => `<span class="pron" data-person="${p}">${esc(text)}</span>`;
   const me = (p, g = null) => p === item.person && g === item.gender ? ' class="me"' : '';
   const title = [
-    `<b>${esc(hintFor(verb, item.lang, item.aspect))}</b>`,
+    `<b>${esc(hintFor(verb, item.lang, item.aspect))}</b> ${groupTag(verb, item.lang, item.aspect)}`,
     `<span class="tchip" data-tense="${item.tense}">${TENSES[item.tense].en}</span>`,
     verb[item.lang]?.pf && ASPECTS[item.aspect].en,
     item.neg && 'negative',

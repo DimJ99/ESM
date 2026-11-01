@@ -208,3 +208,19 @@ test('pool', () => {
   const pfOnly = buildPool({ langs: ['sr'], tenses: ['past'], polarity: ['pos'], aspects: ['pf'], includeNeuter: false });
   assert.equal(pfOnly.length, 59 * 12);
 });
+
+test('conjugation groups', async () => {
+  const { groupOf } = await import('../js/engine.js');
+  const g = (id, lang, a) => groupOf(VERB_BY_ID[id], lang, a);
+  assert.equal(g('read', 'mk'), 'a');      // чита
+  assert.equal(g('eat', 'mk'), 'e');       // јаде
+  assert.equal(g('make', 'mk'), 'i');      // прави
+  assert.equal(g('be', 'mk'), 'irr');      // сум
+  assert.equal(g('read', 'sr'), 'a');      // čitam
+  assert.equal(g('write', 'sr'), 'e');     // pišem
+  assert.equal(g('make', 'sr'), 'i');      // pravim
+  assert.equal(g('can', 'sr'), 'irr');     // mogu
+  assert.equal(g('be', 'sr'), 'irr');      // sam
+  assert.equal(g('give', 'sr', 'pf'), 'a'); // dam
+  assert.equal(g('read', 'mk', 'pf'), 'a'); // прочита
+});

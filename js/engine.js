@@ -138,6 +138,29 @@ export function formsFor(verb, lang, tense, person, gender, neg = false, aspect 
   return [(neg ? 'нема да ' : 'ќе ') + se + words(mk.fut || mk.pres)[person]];
 }
 
+// Conjugation group, from the present tense. Macedonian: А / Е / И-група by the 3sg
+// (чита, јаде, прави). Serbian: by the 1sg/2sg ending (-am/-aš, -em/-eš, -im/-iš).
+export const GROUPS = {
+  sr: { a: 'a-grupa (-am)', e: 'e-grupa (-em)', i: 'i-grupa (-im)', irr: 'nepravilan' },
+  mk: { a: 'А-група (-а)', e: 'Е-група (-е)', i: 'И-група (-и)', irr: 'неправилен' },
+};
+
+export function groupOf(verb, lang, aspect = 'impf') {
+  if (lang === 'sr') {
+    const [s1, s2] = words(srVerb(verb, aspect).pres);
+    const g = { am: 'a', em: 'e', im: 'i' }[s1.slice(-2)];
+    return g && s2.slice(-2) === { a: 'aš', e: 'eš', i: 'iš' }[g] ? g : 'irr';
+  }
+  const [, s2, s3] = words(mkVerb(verb, aspect).pres);
+  if (!s2.endsWith('ш')) return 'irr';                     // сум, си, е
+  return { а: 'a', е: 'e', и: 'i' }[s3.slice(-1)] || 'irr';
+}
+
+export function groupTag(verb, lang, aspect = 'impf') {
+  const g = groupOf(verb, lang, aspect);
+  return `<span class="grp" data-grp="${g}">${GROUPS[lang][g]}</span>`;
+}
+
 export function hintFor(verb, lang, aspect = 'impf') {
   if (lang === 'sr') {
     const sr = srVerb(verb, aspect);
