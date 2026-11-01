@@ -272,6 +272,35 @@ form { display: flex; gap: 8px; }
 .boxes div { text-align: center; }
 .boxes .v { font: 700 18px/1.2 var(--display); }
 .boxes .k { font-size: 11px; color: var(--muted); }
+.boxes.four { grid-template-columns: repeat(4, 1fr); }
+.kinds { display: grid; gap: 8px; margin-top: 14px; }
+.kind { display: grid; grid-template-columns: 9.5em 1fr 2.6em; gap: 10px; align-items: center; font-size: 13px; white-space: nowrap; }
+.kind small { text-align: right; }
+.kind small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.stack { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
+.stack i, .legend i { display: block; }
+.stack .l, .legend .l { background: #6a7186; }
+.stack .y, .legend .y { background: #a8b2cc; }
+.stack .m, .legend .m { background: var(--good); }
+.panel .sub.legend { margin: 14px 0 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; margin-left: 6px; }
+
+/* conjugation table after an answer */
+.conj {
+  margin-top: 10px; padding: 12px 12px 6px; border-radius: 14px;
+  background: color-mix(in srgb, #000 28%, transparent);
+  border: 1px solid color-mix(in srgb, #fff 12%, transparent);
+  animation: pop .2s ease-out;
+}
+.conj-title { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.conj-title b { color: var(--text); font-size: 15px; }
+.conj table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.conj th, .conj td { text-align: left; padding: 6px 6px; border-top: 1px solid color-mix(in srgb, #fff 8%, transparent); vertical-align: top; }
+.conj thead th { border-top: 0; font-size: 12px; color: var(--muted); font-weight: 600; padding-top: 0; }
+.conj tbody th { width: 34%; font-weight: 700; white-space: nowrap; }
+.conj td { font-weight: 600; }
+.conj .me, .conj tr.me > * { background: color-mix(in srgb, #fff 12%, transparent); }
+.conj td.me { border-radius: 6px; }
 
 .mistakes { list-style: none; margin: 0; padding: 0; }
 .mistakes li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }

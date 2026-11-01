@@ -1,5 +1,6 @@
-// Persistence (localStorage), spaced-repetition boxes and stats aggregation.
-import { itemKey, buildPool, PERSON_LABELS } from './engine.js';
+// Persistence (localStorage) and stats aggregation. Scheduling lives in srs.js.
+import { buildPool, PERSON_LABELS } from './engine.js';
+import { applyAnswer, rebuildSkills, summary, rollingAccuracy } from './srs.js';
 
 const KEY = 'esm.v1';
 const MAX_ATTEMPTS = 20000;
@@ -14,18 +15,25 @@ const DEFAULT_SETTINGS = {
 };
 
 function blank() {
-  return { attempts: [], boxes: {}, sessionStart: Date.now(), settings: { ...DEFAULT_SETTINGS } };
+  return { attempts: [], skills: {}, sessionStart: Date.now(), settings: { ...DEFAULT_SETTINGS } };
 }
 
 export function load() {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return blank();
-    const data = JSON.parse(raw);
-    return { ...blank(), ...data, settings: { ...DEFAULT_SETTINGS, ...data.settings } };
+    return upgrade(JSON.parse(raw));
   } catch {
     return blank();
   }
+}
+
+// Older saves tracked whole prompts (boxes / cards). Skills are rebuilt by replaying the history.
+function upgrade(data) {
+  const { boxes, cards, ...rest } = data;
+  const state = { ...blank(), ...rest, settings: { ...DEFAULT_SETTINGS, ...data.settings } };
+  state.skills = data.skills || rebuildSkills(state.attempts);
+  return state;
 }
 
 export function save(state) {
@@ -35,23 +43,17 @@ export function save(state) {
   } catch { /* storage full or blocked — the session still works */ }
 }
 
-// Box 0 = recently missed … box 5 = solid. Unseen items sit between.
-const WEIGHTS = [10, 5, 3, 1.5, 0.7, 0.3];
-const UNSEEN_WEIGHT = 3;
-
 export function record(state, item, outcome, answer, hinted) {
-  const key = itemKey(item);
-  const box = state.boxes[key];
-  if (outcome.result === 'wrong') state.boxes[key] = 0;
-  else if (outcome.result === 'correct' && !hinted) state.boxes[key] = Math.min(5, (box ?? 0) + 1);
-  else state.boxes[key] = box ?? 0;
+  const grades = applyAnswer(state, item, outcome, answer, hinted);
+  const failed = Object.keys(grades).filter(k => grades[k] === 'again');
 
   state.attempts.push({
     t: Date.now(), l: item.lang, v: item.verbId, te: item.tense, p: item.person,
     g: item.gender, n: item.neg ? 1 : 0, pf: item.aspect === 'pf' ? 1 : 0, ok: outcome.result === 'wrong' ? 0 : outcome.result === 'close' ? 2 : 1,
-    e: outcome.error, a: answer.slice(0, 60), h: hinted ? 1 : 0,
+    e: outcome.error, a: answer.slice(0, 60), h: hinted ? 1 : 0, f: failed,
   });
   save(state);
+  return failed;
 }
 
 // A session is just a start time — starting a new one never deletes data.
@@ -62,22 +64,6 @@ export function newSession(state) {
 
 export function sessionAttempts(state) {
   return state.attempts.filter(a => a.t >= state.sessionStart);
-}
-
-export function pickNext(state, last) {
-  const pool = buildPool(state.settings);
-  if (!pool.length) return null;
-  const weights = pool.map(it => {
-    const box = state.boxes[itemKey(it)];
-    const w = box === undefined ? UNSEEN_WEIGHT : WEIGHTS[box];
-    return last && it.verbId === last.verbId ? w * 0.05 : w;
-  });
-  let r = Math.random() * weights.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < pool.length; i++) {
-    r -= weights[i];
-    if (r <= 0) return pool[i];
-  }
-  return pool[pool.length - 1];
 }
 
 const DAY = 86400000;
@@ -116,9 +102,6 @@ export function stats(state, window) {
     .map(([v, s]) => ({ v, ...s, acc: s.ok / s.n }))
     .sort((a, b) => a.acc - b.acc || b.n - a.n);
 
-  const boxes = [0, 0, 0, 0, 0, 0];
-  for (const b of Object.values(state.boxes)) boxes[b]++;
-
   return {
     total: list.length,
     acc: list.length ? correct / list.length : null,
@@ -133,8 +116,8 @@ export function stats(state, window) {
     byAspect: tally(list.filter(a => a.te !== 'pres'), a => a.pf ? 'pf' : 'impf'),
     weakVerbs: verbs.slice(0, 8),
     mistakes: list.filter(a => !a.ok).slice(-15).reverse(),
-    boxes,
-    seen: Object.keys(state.boxes).length,
+    srs: summary(state, now),
+    rolling: rollingAccuracy(state),
     poolSize: buildPool(state.settings).length,
   };
 }
@@ -179,7 +162,7 @@ export function exportData(state) {
 export function importData(text) {
   const data = JSON.parse(text);
   if (data.app !== 'esm' || !Array.isArray(data.attempts)) throw new Error('Not an ESM backup file');
-  return { attempts: data.attempts, boxes: data.boxes || {}, sessionStart: data.sessionStart || Date.now(), settings: { ...DEFAULT_SETTINGS, ...data.settings } };
+  return upgrade({ attempts: data.attempts, skills: data.skills, sessionStart: data.sessionStart || Date.now(), settings: data.settings });
 }
 
 export function reset() {

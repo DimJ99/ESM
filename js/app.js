@@ -1,5 +1,6 @@
-import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
+import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, formsFor, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
 import * as store from './store.js';
+import { pickNext, skillName, SKILL_KINDS, MASTERED_DAYS, LEECH_LAPSES, TARGET } from './srs.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -9,14 +10,16 @@ let state = store.load();
 let current = null;   // { item, pronoun }
 let answered = false;
 let hinted = false;
+let recent = [];      // items shown this run, for spacing and variety
 
 // ---------- practice ----------
 
 function next() {
-  const item = store.pickNext(state, current?.item);
+  const item = pickNext(state, recent);
   $('card').hidden = !item;
   $('empty').hidden = !!item;
   if (!item) return;
+  recent = [...recent.slice(-9), item];
 
   current = { item, pronoun: pronounFor(item) };
   answered = false;
@@ -45,6 +48,7 @@ function next() {
   $('hint-btn').className = 'hint-pill';
   $('hint-btn').textContent = item.lang === 'sr' ? 'Hint: show infinitive' : 'Hint: show dictionary form';
   $('feedback').hidden = true;
+  $('conj').hidden = true;
   $('hint-btn').disabled = false;
   $('keys').hidden = false;
   $('actions').hidden = false;
@@ -79,7 +83,7 @@ function submit(reveal = false) {
   if (!reveal && !raw.trim()) return shake();
 
   const outcome = check(current.item, raw, state.settings);
-  store.record(state, current.item, outcome, raw, hinted);
+  const failed = store.record(state, current.item, outcome, raw, hinted);
   answered = true;
 
   renderSession();
@@ -100,6 +104,7 @@ function submit(reveal = false) {
   const lines = [];
   if (outcome.result !== 'correct' && raw.trim()) lines.push(`You wrote <s>${esc(raw.trim())}</s>`);
   if (others.length) lines.push(`Also accepted: ${others.map(esc).join(', ')}`);
+  if (failed.length) lines.push(`Skill to work on: <b>${failed.map(k => esc(skillName(k))).join(', ')}</b>`);
   const tags = [outcome.error && ERROR_TYPES[outcome.error], hinted && outcome.result === 'correct' && 'Used hint']
     .filter(Boolean).map(t => `<span class="tag">${t}</span>`).join(' ');
 
@@ -109,12 +114,46 @@ function submit(reveal = false) {
   $('fb-answer').innerHTML = `<span class="pron" data-person="${current.item.person}">${esc(current.pronoun.text)}</span> ${esc(outcome.expected)}`;
   $('fb-detail').innerHTML = lines.join('<br>') + (tags ? `<div>${tags}</div>` : '');
   fb.hidden = false;
+  $('conj').innerHTML = conjTable(current.item);
+  $('conj').hidden = false;
 
   $('keys').hidden = true;
   $('actions').hidden = true;
   $('submit').textContent = 'Next →';
   if (outcome.result === 'wrong') shake();
   input.focus({ preventScroll: true });
+}
+
+// The whole tense just asked — same aspect and polarity, every person — so the
+// pattern is visible even when the logic was right and only the ending slipped.
+function conjTable(item) {
+  const verb = VERB_BY_ID[item.verbId];
+  const L = LANGS[item.lang];
+  const form = (p, g) => esc(formsFor(verb, item.lang, item.tense, p, g, item.neg, item.aspect)[0]);
+  const pron = (p, text) => `<span class="pron" data-person="${p}">${esc(text)}</span>`;
+  const me = (p, g = null) => p === item.person && g === item.gender ? ' class="me"' : '';
+  const title = [
+    `<b>${esc(hintFor(verb, item.lang, item.aspect))}</b>`,
+    `<span class="tchip" data-tense="${item.tense}">${TENSES[item.tense].en}</span>`,
+    verb[item.lang]?.pf && ASPECTS[item.aspect].en,
+    item.neg && 'negative',
+  ].filter(Boolean).join(' · ');
+
+  let body;
+  if (item.lang === 'sr' && item.tense === 'past') {
+    // pronoun per gender: 3rd person changes (on / ona, oni / one), the rest don't
+    const who = (p, g) => p === 2 ? { m: 'on', f: 'ona', n: 'ono' }[g] : p === 5 ? { m: 'oni', f: 'one' }[g] : L.pronouns[p][0];
+    const cell = (p, g) => `<td${me(p, g)}>${pron(p, who(p, g))} ${form(p, g)}</td>`;
+    body = `<thead><tr>${['m', 'f'].map(g => `<th><span class="gbadge sm" data-g="${g}">${GENDER_TAG[g]}</span> ${GENDERS[g].en}</th>`).join('')}</tr></thead><tbody>` +
+      [0, 1, 2, 3, 4, 5].map(p => `<tr>${cell(p, 'm')}${cell(p, 'f')}</tr>` +
+        (p === 2 && (state.settings.includeNeuter || item.gender === 'n')
+          ? `<tr><td colspan="2"${me(2, 'n')}><span class="gbadge sm" data-g="n">N</span> ${pron(2, 'ono')} ${form(2, 'n')}</td></tr>` : '')).join('') +
+      `</tbody>`;
+  } else {
+    body = `<tbody>${[0, 1, 2, 3, 4, 5].map(p =>
+      `<tr${me(p)}><th>${pron(p, L.pronouns[p].join(' / '))}</th><td>${form(p)}</td></tr>`).join('')}</tbody>`;
+  }
+  return `<div class="conj-title">${title}</div><table>${body}</table>`;
 }
 
 function shake() {
@@ -252,24 +291,70 @@ function renderStats() {
       }), { fmt: accFmt }) + `</div>`;
   }
 
-  const boxLabels = ['missed', 'new', 'learning', 'learning', 'good', 'solid'];
-  html += `<div class="panel"><h2>Mastery</h2><p class="sub">${s.seen} of ${s.poolSize} prompts seen with current settings</p>
-    <div class="boxes">${s.boxes.map((n, i) => `<div><div class="v">${n}</div><div class="k">${boxLabels[i]}</div></div>`).join('')}</div></div>`;
+  const r = s.srs;
+  const skillRow = sk => `<li><div class="q">${esc(skillName(sk.key))}</div>
+    <div class="a"><span class="tag">missed ${sk.lapses}×</span> <span class="tag">${sk.iv ? `next in ${sk.iv} d` : 'learning'}</span></div></li>`;
+  if (statsWindow === 0) {
+    // all time: long-term stability, per skill
+    html += `<div class="panel"><h2>Skills</h2><p class="sub">${r.seen} skills seen · mastered = next review ${MASTERED_DAYS}+ days out</p>
+      <div class="boxes four">
+        <div><div class="v">${r.learning}</div><div class="k">learning</div></div>
+        <div><div class="v">${r.young}</div><div class="k">growing</div></div>
+        <div><div class="v">${r.mastered}</div><div class="k">mastered</div></div>
+        <div><div class="v">${r.leeches.length}</div><div class="k">leeches</div></div>
+      </div>
+      <div class="kinds">${Object.entries(SKILL_KINDS).filter(([k]) => r.byKind[k]).map(([k, name]) => {
+        const b = r.byKind[k], n = b.learning + b.young + b.mastered;
+        return `<div class="kind"><span>${name}</span><span class="stack" title="learning / growing / mastered">` +
+          `<i class="l" style="flex:${b.learning}"></i><i class="y" style="flex:${b.young}"></i><i class="m" style="flex:${b.mastered}"></i></span>` +
+          `<small>${b.mastered}/${n}</small></div>`;
+      }).join('')}</div>
+      <p class="sub legend"><i class="l"></i>learning <i class="y"></i>growing <i class="m"></i>mastered</p></div>`;
+    if (r.leeches.length) {
+      html += `<div class="panel"><h2>Leeches</h2>
+        <p class="sub">Failed ${LEECH_LAPSES}+ times, on more than one day. These need a new angle, not more reps: use it in a sentence, find a mnemonic, or compare it with a verb that follows the same pattern.</p>
+        <ul class="mistakes">${r.leeches.slice(0, 12).map(skillRow).join('')}</ul></div>`;
+    }
+  } else {
+    // shorter windows: what the spacing has lined up, and whether the pace is right
+    const acc = s.rolling;
+    const pace = acc === null ? 'answer a few more to set the pace'
+      : acc < 0.65 ? 'below 65% — reviewing only, no new material'
+      : acc > 0.9 ? 'above 90% — bringing in new material faster'
+      : acc < TARGET[0] ? 'a little low — leaning on review'
+      : acc > TARGET[1] ? 'a little high — adding new material' : 'right in the target band';
+    html += `<div class="panel"><h2>Pace</h2>
+      <p class="sub">last 30 answers: <b>${pct(acc)}</b> · target ${TARGET[0] * 100}–${TARGET[1] * 100}% · ${pace}</p>
+      <div class="boxes four">
+        <div><div class="v">${r.dueNow}</div><div class="k">skills due</div></div>
+        <div><div class="v">${r.dueToday}</div><div class="k">due today</div></div>
+        <div><div class="v">${r.dueWeek}</div><div class="k">next 7 days</div></div>
+        <div><div class="v">${r.mastered}</div><div class="k">mastered</div></div>
+      </div></div>`;
+    if (r.weakest.length) html += `<div class="panel"><h2>Weakest skills</h2><ul class="mistakes">${r.weakest.map(skillRow).join('')}</ul></div>`;
+  }
 
   if (s.mistakes.length) {
     html += `<div class="panel"><h2>Recent mistakes</h2><ul class="mistakes">${s.mistakes.map(m => {
-      const v = VERB_BY_ID[m.v];
-      if (!v) return '';
+      if (!VERB_BY_ID[m.v]) return '';
       const item = { lang: m.l, verbId: m.v, tense: m.te, person: m.p, gender: m.g, neg: !!m.n, aspect: m.pf ? 'pf' : 'impf' };
-      const pron = LANGS[m.l].pronouns[m.p][m.g === 'f' && (m.p === 2 || m.p === 5) ? 1 : m.g === 'n' ? 2 : 0];
-      const gtag = m.g ? ` <span class="gbadge sm" data-g="${m.g}">${GENDER_TAG[m.g]}</span>` : '';
-      const exp = check(item, '', state.settings).expected;
-      return `<li><div class="q"><span class="l ${m.l}">${LANGS[m.l].short}</span> · ${esc(promptFor(v, item.aspect))} · <span class="tchip" data-tense="${m.te}">${TENSES[m.te].en}</span>${m.pf ? ' · <b>pf</b>' : ''}${m.n ? ` · <b>${LANGS[m.l].neg}</b>` : ''} · <span class="pron" data-person="${m.p}">${esc(pron)}</span>${gtag}</div>
-        <div class="a">${m.a ? `<s>${esc(m.a)}</s> → ` : ''}<b>${esc(exp)}</b> <span class="tag">${ERROR_TYPES[m.e] || ''}</span></div></li>`;
+      return `<li><div class="q">${describe(item)}</div>
+        <div class="a">${m.a ? `<s>${esc(m.a)}</s> → ` : ''}<b>${esc(check(item, '', state.settings).expected)}</b> <span class="tag">${ERROR_TYPES[m.e] || ''}</span></div></li>`;
     }).join('')}</ul></div>`;
   }
 
   body.innerHTML = html;
+}
+
+// One-line description of a prompt for the stats lists.
+function describe(item) {
+  const L = LANGS[item.lang];
+  const pron = L.pronouns[item.person][item.gender === 'f' && (item.person === 2 || item.person === 5) ? 1 : item.gender === 'n' ? 2 : 0];
+  const gtag = item.gender ? ` <span class="gbadge sm" data-g="${item.gender}">${GENDER_TAG[item.gender]}</span>` : '';
+  return `<span class="l ${item.lang}">${L.short}</span> · ${esc(promptFor(VERB_BY_ID[item.verbId], item.aspect))} · ` +
+    `<span class="tchip" data-tense="${item.tense}">${TENSES[item.tense].en}</span>` +
+    `${item.aspect === 'pf' ? ' · <b>pf</b>' : ''}${item.neg ? ` · <b>${L.neg}</b>` : ''} · ` +
+    `<span class="pron" data-person="${item.person}">${esc(pron)}</span>${gtag}`;
 }
 
 function ago(t) {

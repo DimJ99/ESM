@@ -8,7 +8,7 @@ const att = (daysAgo, ok, te = 'pres') => ({ t: Date.now() - daysAgo * DAY, l: '
 test('weekly compares this week to earlier active weeks', () => {
   const now = new Date();
   const sinceMonday = (now.getDay() + 6) % 7; // days since Monday
-  const state = { boxes: {}, settings: {}, attempts: [
+  const state = { skills: {}, settings: {}, attempts: [
     att(sinceMonday + 8, 1), att(sinceMonday + 8, 0),                    // a past week: 2 answers, 50%
     att(sinceMonday + 15, 1), att(sinceMonday + 15, 1), att(sinceMonday + 15, 1), att(sinceMonday + 15, 1), // 4 answers, 100%
     att(0, 1), att(0, 1), att(0, 0),                                     // this week: 3 answers, 67%
@@ -22,7 +22,7 @@ test('weekly compares this week to earlier active weeks', () => {
 });
 
 test('session window only counts answers since the session started', () => {
-  const state = { boxes: {}, settings: { langs: [], tenses: [], polarity: [] }, sessionStart: Date.now() - 1000,
+  const state = { skills: {}, settings: { langs: [], tenses: [], polarity: [] }, sessionStart: Date.now() - 1000,
     attempts: [att(2, 0), att(0, 1)] };
   assert.equal(sessionAttempts(state).length, 1);
   assert.equal(stats(state, 'session').total, 1);

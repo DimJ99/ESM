@@ -254,6 +254,12 @@ export function itemKey(item) {
   return `${item.lang}|${item.verbId}|${item.tense}|${item.person}|${item.gender || '-'}${item.neg ? '|neg' : ''}${item.aspect === 'pf' ? '|pf' : ''}`;
 }
 
+export function parseKey(key) {
+  const [lang, verbId, tense, person, gender, ...flags] = key.split('|');
+  return { lang, verbId, tense, person: +person, gender: gender === '-' ? null : gender,
+           neg: flags.includes('neg'), aspect: flags.includes('pf') ? 'pf' : 'impf' };
+}
+
 // Perfective is drilled in past and future only — a bare perfective present only
 // shows up after da / ako (SR) or да / ќе / ако (MK).
 export function buildPool({ langs, tenses, polarity, aspects = ['impf', 'pf'], includeNeuter }) {

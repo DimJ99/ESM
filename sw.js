@@ -1,8 +1,8 @@
 // Offline support. The shell is precached on install so the app opens offline.
-const VERSION = 'esm-v5';
+const VERSION = 'esm-v6';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
-  'js/app.js', 'js/engine.js', 'js/store.js', 'js/verbs.js',
+  'js/app.js', 'js/engine.js', 'js/srs.js', 'js/store.js', 'js/verbs.js',
   'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 
