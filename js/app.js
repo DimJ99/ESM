@@ -1,4 +1,4 @@
-import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, formsFor, groupTag, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
+import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, formsFor, groupTag, setPrefs, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
 import * as store from './store.js';
 import { pickNext, skillName, SKILL_KINDS, MASTERED_DAYS, LEECH_LAPSES, TARGET } from './srs.js';
 
@@ -7,6 +7,8 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const pct = x => x == null ? '–' : Math.round(x * 100) + '%';
 
 let state = store.load();
+const applyPrefs = () => setPrefs({ srFutDa: !!state.settings.srFutDa });
+applyPrefs();
 let current = null;   // { item, pronoun }
 let answered = false;
 let hinted = false;
@@ -423,6 +425,7 @@ document.querySelectorAll('[data-set]').forEach(el => el.addEventListener('chang
     state.settings[key] = el.checked;
   }
   store.save(state);
+  applyPrefs();
   current = null;
 }));
 
@@ -442,6 +445,7 @@ $('import-file').addEventListener('change', async e => {
     const data = store.importData(await file.text());
     if (!confirm(`Replace current progress with this backup (${data.attempts.length} answers)?`)) return;
     state = data;
+    applyPrefs();
     store.save(state);
     renderSettings();
     current = null;

@@ -59,6 +59,10 @@ const SR_NEG_AUX = ['nisam', 'nisi', 'nije', 'nismo', 'niste', 'nisu'];
 const SR_NEG_FUT = ['neću', 'nećeš', 'neće', 'nećemo', 'nećete', 'neće'];
 const words = s => s.split(' ');
 
+// Display preferences that change which accepted form is shown first (all stay accepted).
+const prefs = { srFutDa: false };
+export function setPrefs(p) { Object.assign(prefs, p); }
+
 // Which genders get their own prompt, per person. Only the Serbian past is gendered.
 export function gendersFor(lang, tense, person, includeNeuter) {
   if (lang !== 'sr' || tense !== 'past') return [null];
@@ -127,8 +131,14 @@ export function formsFor(verb, lang, tense, person, gender, neg = false, aspect 
       return person === 2 ? [`${part} se`, `se ${part}`] : [`${part} ${aux} se`, `${aux} se ${part}`];
     }
     const se = r ? 'se ' : '';
-    if (neg) return r ? [`${SR_NEG_FUT[person]} se ${sr.inf}`, `se ${SR_NEG_FUT[person]} ${sr.inf}`] : [`${SR_NEG_FUT[person]} ${sr.inf}`];
-    return [srFuture(sr, person) + (r ? ' se' : ''), `${SR_FUT_AUX[person]} ${se}${sr.inf}`];
+    const std = neg
+      ? (r ? [`${SR_NEG_FUT[person]} se ${sr.inf}`, `se ${SR_NEG_FUT[person]} ${sr.inf}`] : [`${SR_NEG_FUT[person]} ${sr.inf}`])
+      : [srFuture(sr, person) + (r ? ' se' : ''), `${SR_FUT_AUX[person]} ${se}${sr.inf}`];
+    // Belgrade / southern future: ću da + present (ja ću da spavam, neću da spavam, ću da se budim)
+    if (sr.noDa) return std;
+    const p = words(sr.daPres || sr.pres)[person];
+    const da = `${neg ? SR_NEG_FUT[person] : SR_FUT_AUX[person]} da ${se}${p}`;
+    return prefs.srFutDa ? [da, ...std] : [...std, da];
   }
   const mk = mkVerb(verb, aspect);
   const se = mk.refl ? 'се ' : '';

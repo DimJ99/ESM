@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS = {
   polarity: ['pos', 'neg'],
   aspects: ['impf', 'pf'],
   lenient: true,
+  srFutDa: false,
   includeNeuter: false,
 };
 

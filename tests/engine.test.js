@@ -52,7 +52,7 @@ test('serbian forms', () => {
   assert.equal(formsFor(read, 'sr', 'past', 2, 'n')[0], 'čitalo je');
   assert.equal(formsFor(read, 'sr', 'past', 5, 'f')[0], 'čitale su');
   assert.equal(formsFor(read, 'sr', 'past', 3, 'm')[0], 'čitali smo');
-  assert.deepEqual(formsFor(read, 'sr', 'fut', 1), ['čitaćeš', 'ćeš čitati']);
+  assert.deepEqual(formsFor(read, 'sr', 'fut', 1), ['čitaćeš', 'ćeš čitati', 'ćeš da čitaš']);
   assert.equal(formsFor(VERB_BY_ID.go, 'sr', 'fut', 0)[0], 'ići ću');
   assert.equal(formsFor(VERB_BY_ID.can, 'sr', 'fut', 3)[0], 'moći ćemo');
   assert.equal(formsFor(VERB_BY_ID.eat, 'sr', 'fut', 0)[0], 'ješću');
@@ -157,7 +157,7 @@ test('reflexive forms', () => {
   assert.equal(formsFor(w, 'sr', 'past', 2, 'm')[0], 'budio se');           // je drops
   assert.equal(formsFor(w, 'sr', 'past', 0, 'f')[0], 'budila sam se');
   assert.equal(formsFor(w, 'sr', 'past', 0, 'm', true)[0], 'nisam se budio');
-  assert.deepEqual(formsFor(w, 'sr', 'fut', 0), ['budiću se', 'ću se buditi']);
+  assert.deepEqual(formsFor(w, 'sr', 'fut', 0), ['budiću se', 'ću se buditi', 'ću da se budim']);
   assert.equal(formsFor(w, 'sr', 'fut', 0, null, true)[0], 'neću se buditi');
   assert.equal(formsFor(w, 'sr', 'past', 0, 'm', false, 'pf')[0], 'probudio sam se');
   assert.equal(hintFor(w, 'sr', 'pf'), 'probuditi se');
@@ -223,4 +223,27 @@ test('conjugation groups', async () => {
   assert.equal(g('be', 'sr'), 'irr');      // sam
   assert.equal(g('give', 'sr', 'pf'), 'a'); // dam
   assert.equal(g('read', 'mk', 'pf'), 'a'); // прочита
+});
+
+test('Belgrade future: ću da + present', async () => {
+  const { setPrefs } = await import('../js/engine.js');
+  const ok = (it, ans) => assert.equal(run(it, ans).result, 'correct', ans);
+  ok(item('sr', 'sleep', 'fut', 0), 'ja ću da spavam');
+  ok(item('sr', 'sleep', 'fut', 0), 'spavaću');                        // standard still counts
+  ok(item('sr', 'sleep', 'fut', 1), 'ti ćeš da spavaš');
+  ok(neg('sr', 'sleep', 'fut', 0), 'ja neću da spavam');
+  ok(neg('sr', 'sleep', 'fut', 0), 'neću spavati');
+  ok(item('sr', 'wake', 'fut', 0), 'ja ću da se budim');
+  ok(neg('sr', 'wake', 'fut', 3), 'mi nećemo da se budimo');
+  ok(pf('read', 'fut', 0), 'ja ću da pročitam');
+  ok(item('sr', 'be', 'fut', 0), 'ja ću da budem');
+  assert.equal(run(item('sr', 'be', 'fut', 0), 'ja ću da sam').result, 'wrong');
+  assert.equal(run(item('sr', 'want', 'fut', 0), 'ja ću da hoću').result, 'wrong');
+  assert.equal(run(item('sr', 'sleep', 'pres', 0), 'ću da spavam').error, 'tense');
+  // display preference only changes which form is shown first
+  assert.equal(formsFor(VERB_BY_ID.sleep, 'sr', 'fut', 0)[0], 'spavaću');
+  setPrefs({ srFutDa: true });
+  assert.equal(formsFor(VERB_BY_ID.sleep, 'sr', 'fut', 0)[0], 'ću da spavam');
+  assert.equal(formsFor(VERB_BY_ID.sleep, 'sr', 'fut', 0, null, true)[0], 'neću da spavam');
+  setPrefs({ srFutDa: false });
 });

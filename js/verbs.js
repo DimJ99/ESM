@@ -8,6 +8,8 @@
 // sr.past     past participle "masc.sg fem.sg" — the rest (n.sg, m.pl, f.pl) are derived
 // sr.fut      optional 1sg synthetic future when it can't be derived from the infinitive
 // sr.negPres  optional fused negative present (nisam, nemam, neću); default is "ne" + present
+// sr.daPres   present used in the "ću da" future when it differs (biti: ću da budem)
+// sr.noDa     no "ću da" future (hteti)
 // sr.pf       perfective partner, same fields (drilled in past and future only)
 //
 // mk.pres     present, 6 forms: јас ти тој ние вие тие (3sg is the dictionary form/hint)
@@ -21,13 +23,13 @@
 
 export const VERBS = [
   { id: 'be', en: 'to be',
-    sr: { inf: 'biti', pres: 'sam si je smo ste su', presAlt: 'jesam jesi jeste jesmo jeste jesu', negPres: 'nisam nisi nije nismo niste nisu', past: 'bio bila', fut: 'biću' },
+    sr: { inf: 'biti', pres: 'sam si je smo ste su', presAlt: 'jesam jesi jeste jesmo jeste jesu', negPres: 'nisam nisi nije nismo niste nisu', past: 'bio bila', fut: 'biću', daPres: 'budem budeš bude budemo budete budu' },
     mk: { pres: 'сум си е сме сте се', past: 'бев беше беше бевме бевте беа', fut: 'бидам бидеш биде бидеме бидете бидат', dict: 'сум' } },
   { id: 'have', en: 'to have',
     sr: { inf: 'imati', pres: 'imam imaš ima imamo imate imaju', negPres: 'nemam nemaš nema nemamo nemate nemaju', past: 'imao imala' },
     mk: { pres: 'имам имаш има имаме имате имаат', past: 'имав имаше имаше имавме имавте имаа', negPres: 'немам немаш нема немаме немате немаат', negPast: 'немав немаше немаше немавме немавте немаа' } },
   { id: 'want', en: 'to want',
-    sr: { inf: 'hteti', pres: 'hoću hoćeš hoće hoćemo hoćete hoće', negPres: 'neću nećeš neće nećemo nećete neće', past: 'hteo htela' },
+    sr: { inf: 'hteti', pres: 'hoću hoćeš hoće hoćemo hoćete hoće', negPres: 'neću nećeš neće nećemo nećete neće', past: 'hteo htela', noDa: true },
     mk: { pres: 'сакам сакаш сака сакаме сакате сакаат', past: 'сакав сакаше сакаше сакавме сакавте сакаа' } },
   { id: 'love', en: 'to love / like',
     sr: { inf: 'voleti', pres: 'volim voliš voli volimo volite vole', past: 'voleo volela' },
