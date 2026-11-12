@@ -7,7 +7,7 @@ const MAX_ATTEMPTS = 20000;
 
 const DEFAULT_SETTINGS = {
   langs: ['sr', 'mk'],
-  tenses: ['pres', 'past', 'fut'],
+  tenses: ['pres', 'past', 'fut', 'perf'],
   polarity: ['pos', 'neg'],
   aspects: ['impf', 'pf'],
   lenient: true,
@@ -54,6 +54,11 @@ function upgrade(data) {
   const { boxes, cards, ...rest } = data;
   const state = { ...blank(), ...rest, settings: { ...DEFAULT_SETTINGS, ...data.settings } };
   state.skills = data.skills || rebuildSkills(state.attempts);
+  // the Macedonian perfect arrived later: switch it on once for existing saves
+  if (!state.settings.perfAdded) {
+    if (!state.settings.tenses.includes('perf')) state.settings.tenses = [...state.settings.tenses, 'perf'];
+    state.settings.perfAdded = true;
+  }
   return state;
 }
 
@@ -180,7 +185,7 @@ export function weekly(state, mod = null) {
   const past = [...weeks].filter(([w]) => w < thisWeek).map(([, l]) => l);
   const acc = l => l.length ? l.filter(a => a.ok).length / l.length : null;
   const mean = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
-  const tenses = ['pres', 'past', 'fut'];
+  const tenses = ['pres', 'past', 'fut', 'perf'];
   return {
     weeks: past.length,
     cur: { n: cur.length, acc: acc(cur) },

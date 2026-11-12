@@ -1,8 +1,8 @@
-import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, formsFor, gendersFor, groupTag, setPrefs, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
+import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, formsFor, gendersFor, tensesFor, groupTag, setPrefs, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
 import * as store from './store.js';
 import { buildCheckpoint, summarize, toCSV, CHECKPOINT_SIZE, breakdownKey } from './checkpoint.js';
 import { NOUN_BY_ID, CASES, CASE_NAMES, FRAMES, OWNERS, OWNER_PERSON, ART_NAMES, frameText, srBase, mkBase, srSlot,
-  mkArticle, nounForms, checkNoun, nounHint, nounNote, nounLabel, nounTwin, withNumber, numberWord } from './nounEngine.js';
+  mkArticle, nounForms, checkNoun, nounHint, nounNote, nounLabel, nounTwin, withNumber, numberWord, menCount } from './nounEngine.js';
 import { CONNECTOR_BY_ID, FILLERS, CONN_GROUPS, checkConn, connTwin, connLabel } from './connEngine.js';
 import { PERSONAL_BY_ID, POSSESSIVE_BY_ID, DRILL_BY_ID, DRILL_SKILLS, SR_CASES, MK_ROLES, SLOT_NAMES, PERSON_COLOUR,
   checkPron, pronTwin, pronHint, pronNote, pronLabel, pronBase, formRole, pronForms } from './pronEngine.js';
@@ -45,11 +45,15 @@ function pickTwin() {
     twinNext = null;
     return item;
   }
-  const first = Math.random() < 0.5 ? 'sr' : 'mk', second = first === 'sr' ? 'mk' : 'sr';
+  let first = Math.random() < 0.5 ? 'sr' : 'mk';
   // nouns: only the constructions both languages share (possessives, counting, plurals)
-  const settings = { ...state.settings, langs: [first], ...((mod() === 'nouns' || mod() === 'adjectives') && { twinOnly: true }) };
-  let item = pickNext({ ...state, settings }, recent);
+  const pick = lang => pickNext({ ...state, settings: { ...state.settings, langs: [lang],
+    ...((mod() === 'nouns' || mod() === 'adjectives') && { twinOnly: true }) } }, recent);
+  let item = pick(first);
+  // nothing in that language with these settings (e.g. only the Macedonian perfect): start from the other
+  if (!item) item = pick(first = first === 'sr' ? 'mk' : 'sr');
   if (!item) return null;
+  const second = first === 'sr' ? 'mk' : 'sr';
   if (item.mod) {
     if (item.mod === 'noun') item = withNumber(item);
     if (item.mod === 'adj') item = { ...withNoun(item, true), target: item.target };
@@ -64,13 +68,15 @@ function pickTwin() {
   const verb = VERB_BY_ID[item.verbId];
   if (!verb[second]) return item;
   const aspect = item.aspect === 'pf' && !verb[second].pf ? 'impf' : item.aspect;
-  const genders = gendersFor(second, item.tense, item.person, state.settings.includeNeuter);
+  // Serbian has no separate perfect: сум читал ↔ čitao sam
+  const tense = item.tense === 'perf' && second === 'sr' ? 'past' : item.tense;
+  const genders = gendersFor(second, tense, item.person, state.settings.includeNeuter);
   // keep "ona" ↔ "таа" across the pair: the Serbian past needs a gender, other cards just show it
   const third = item.person === 2 ? ['m', 'f', ...(state.settings.includeNeuter ? ['n'] : [])] : item.person === 5 ? ['m', 'f'] : [];
   const choices = genders[0] ? genders : third;
   const g = item.gender || (choices.length ? choices[Math.floor(Math.random() * choices.length)] : null);
   item.showGender = g;
-  twinNext = { ...item, lang: second, aspect, gender: genders[0] ? g : null, showGender: g, twin: 2, target: undefined };
+  twinNext = { ...item, lang: second, tense, aspect, gender: genders[0] ? g : null, showGender: g, twin: 2, target: undefined };
   item.twin = 1;
   return item;
 }
@@ -330,7 +336,7 @@ function answerLine(item, expected) {
   const b = `<b>${esc(expected)}</b>`;
   if (item.mod === 'noun') {
     if (item.kind === 'case') return esc(frameText(item)).replace('___', b);
-    if (item.kind === 'count') return `${esc(numberWord(item))} ${b}`;
+    if (item.kind === 'count') return expected.startsWith(numberWord(item) + ' ') ? b : `${esc(numberWord(item))} ${b}`;
     return b;
   }
   if (item.mod === 'conn') return esc(CONNECTOR_BY_ID[item.connId][item.lang].frame).replace('___', b);
@@ -371,7 +377,7 @@ function nounTable(item) {
       ['that', mkArticle(noun, 'dist', 'sg'), mkArticle(noun, 'dist', 'pl'), item.kind === 'art' && item.detail === 'dist' && item.num]];
     body = rows.map(([label, sg, pl, on]) => `<tr><th>${label}</th>${nums.map(n =>
       `<td${hi(on === n)}>${esc((n === 'sg' ? sg : pl) || '—')}</td>`).join('')}</tr>`).join('');
-    if (mk.pl && mk.g !== 'pl') extra = `<p class="conj-note"${item.kind === 'count' ? ' data-on="1"' : ''}>counting: ${mk.g === 'm' ? 'два' : 'две'} ${esc(mk.cnt || mk.pl)}${mk.cnt ? ' (counted form)' : ''}</p>`;
+    if (mk.pl && mk.g !== 'pl') extra = `<p class="conj-note">counting: ${esc(numberWord({ ...item, kind: 'count', n: 2 }))} ${esc(mk.cnt || mk.pl)}${mk.cnt ? ' (counted form)' : menCount(noun) ? ' · петмина ' + esc(mk.pl) + ' (groups of men)' : ''}</p>`;
   }
   const note = nounNote(item);
   return `<div class="conj-title"><b>${esc(base)}</b>${badge} · ${esc(h.text)}</div><table class="nouns ${item.lang}">${head}<tbody>${body}</tbody></table>${extra}` +
@@ -471,7 +477,15 @@ function conjTable(item) {
   ].filter(Boolean).join(' · ');
 
   let body;
-  if (item.lang === 'sr' && item.tense === 'past') {
+  if (item.lang === 'mk' && item.tense === 'perf') {
+    // gendered in the singular (сум читал / сум читала), one plural form (сме читале)
+    const who = (p, g) => p === 2 ? { m: 'тој', f: 'таа', n: 'тоа' }[g] : L.pronouns[p][0];
+    const cell = (p, g) => `<td${me(p, g)}>${pron(p, who(p, g))} ${form(p, g)}</td>`;
+    body = `<thead><tr>${['m', 'f'].map(g => `<th><span class="gbadge sm" data-g="${g}">${GENDER_TAG[g]}</span> ${GENDERS[g].en}</th>`).join('')}</tr></thead><tbody>` +
+      [0, 1, 2].map(p => `<tr>${cell(p, 'm')}${cell(p, 'f')}</tr>`).join('') +
+      (state.settings.includeNeuter || item.gender === 'n' ? `<tr><td colspan="2"${me(2, 'n')}><span class="gbadge sm" data-g="n">N</span> ${pron(2, 'тоа')} ${form(2, 'n')}</td></tr>` : '') +
+      [3, 4, 5].map(p => `<tr><td colspan="2"${me(p)}>${pron(p, L.pronouns[p][0])} ${form(p)}</td></tr>`).join('') + `</tbody>`;
+  } else if (item.lang === 'sr' && item.tense === 'past') {
     // pronoun per gender: 3rd person changes (on / ona, oni / one), the rest don't
     const who = (p, g) => p === 2 ? { m: 'on', f: 'ona', n: 'ono' }[g] : p === 5 ? { m: 'oni', f: 'one' }[g] : L.pronouns[p][0];
     const cell = (p, g) => `<td${me(p, g)}>${pron(p, who(p, g))} ${form(p, g)}</td>`;
@@ -784,7 +798,7 @@ function verbPanels(s) {
   html += `<div class="panel"><h2>Accuracy by tense</h2>`;
   for (const l of langs) {
     html += `<p class="sub" style="margin-top:${l === langs[0] ? -6 : 10}px">${LANGS[l].name}</p>`;
-    html += bars(Object.keys(TENSES).map(t => ({
+    html += bars(tensesFor(l).map(t => ({
       ...accRow(`<span class="dot" data-tense="${t}"></span>${TENSES[t].en} <small>${TENSES[t][l]}</small>`, s.byTense.get(`${l}|${t}`)),
       color: `var(--${t})`,
     })), { fmt: accFmt });

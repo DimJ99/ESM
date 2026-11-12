@@ -20,7 +20,11 @@ export const TENSES = {
   pres: { en: 'present', sr: 'prezent', mk: 'сегашно време' },
   past: { en: 'past', sr: 'perfekat', mk: 'минато време' },
   fut:  { en: 'future', sr: 'futur I', mk: 'идно време' },
+  // Macedonian only: сум + l-form (сум читал, тој читал), gendered in the singular
+  perf: { en: 'perfect', sr: '—', mk: 'минато неопределено' },
 };
+// Tenses a language has — the perfect is Macedonian only.
+export const tensesFor = lang => Object.keys(TENSES).filter(t => t !== 'perf' || lang === 'mk');
 
 export const ASPECTS = {
   impf: { en: 'imperfective', sr: 'nesvršeni', mk: 'несвршен' },
@@ -47,6 +51,31 @@ export const ERROR_TYPES = {
   ke:         'Missing ќе',
   negation:   'Negation (ne / nisam / neću / нема да)',
   aspect:     'Wrong aspect (čitao ↔ pročitao)',
+  // nouns
+  case:       'Wrong case',
+  number:     'Singular ↔ plural',
+  animacy:    'Animacy (vidim brata / vidim grad)',
+  motion:     'Motion vs location (u + acc / u + loc)',
+  counting:   'Counting form (dva grada / dve kuće / pet gradova)',
+  counted:    'Counted plural (два стола)',
+  mencount:   'Counting men (двајца, тројца, петмина)',
+  agreement:  'Agreement (moja / мојата …)',
+  ownership:  'Ownership pattern (сестра ми / моите пријатели)',
+  possessive: 'Wrong possessive (my / your / his…)',
+  article:    'Article form (-от / -ов / -он)',
+  plural:     'Plural form',
+  // connectors
+  connector:  'Wrong connector',
+  // pronouns
+  longshort:  'Short vs long form (ga / njega)',
+  pronoun:    'Wrong pronoun',
+  order:      'Clitic order (joj ga)',
+  // adjectives
+  adjagree:   'Adjective agreement',
+  nounform:   'Noun form',
+  artplace:   'Article on the wrong word (новиот компјутер)',
+  comparative: 'Comparative form',
+  incomplete: 'Only part of the phrase',
   verb:       'Wrong verb',
   spelling:   'Spelling / stem',
   blank:      'Gave up (blank)',
@@ -67,6 +96,11 @@ export function setPrefs(p) { Object.assign(prefs, p); }
 
 // Which genders get their own prompt, per person. Only the Serbian past is gendered.
 export function gendersFor(lang, tense, person, includeNeuter) {
+  if (lang === 'mk' && tense === 'perf') {
+    // l-form plural is the same for every gender (читале)
+    if (person >= 3) return [null];
+    return person === 2 && includeNeuter ? ['m', 'f', 'n'] : ['m', 'f'];
+  }
   if (lang !== 'sr' || tense !== 'past') return [null];
   if (person === 2) return includeNeuter ? ['m', 'f', 'n'] : ['m', 'f'];
   return ['m', 'f'];
@@ -97,6 +131,22 @@ function mkVerb(verb, aspect) {
 export function hasLang(verb, lang, aspect = 'impf') {
   if (lang === 'mk') return !!verb.mk && (aspect === 'impf' || !!verb.mk.pf);
   return aspect === 'impf' || !!verb.sr.pf;
+}
+
+const MK_PERF_AUX = ['сум', 'си', '', 'сме', 'сте', ''];
+
+// Macedonian l-form (for the perfect), from the past tense: читав → читал, направив → направил.
+// mk.lform "m f" overrides it where the stem changes (дојдов → дошол / дошла, сум → бил).
+export function mkLForms(mk) {
+  let m, f;
+  if (mk.lform) [m, f] = words(mk.lform);
+  else {
+    const stem = words(mk.past)[0].slice(0, -1);
+    m = stem + 'л';
+    f = stem + 'ла';
+  }
+  const base = f.slice(0, -1);
+  return { m, f, n: base + 'о', pl: base + 'е' };
 }
 
 // Native tense name for the chip — the Macedonian past differs by aspect.
@@ -144,6 +194,23 @@ export function formsFor(verb, lang, tense, person, gender, neg = false, aspect 
   }
   const mk = mkVerb(verb, aspect);
   const se = mk.refl ? 'се ' : '';
+  if (tense === 'perf') {
+    // сум читал / читал сум, тој читал (no auxiliary), не сум читал, сум се будел
+    const L = mkLForms(mk);
+    const part = person >= 3 ? L.pl : L[gender || 'm'];
+    const aux = MK_PERF_AUX[person];
+    if (neg) {
+      const out = aux ? [`не ${aux} ${se}${part}`] : [`не ${se}${part}`];
+      if (mk.negPast && !se) {                              // немал сум (има → нема)
+        const n = mkLForms({ past: mk.negPast });
+        const np = person >= 3 ? n.pl : n[gender || 'm'];
+        out.push(...(aux ? [`${np} ${aux}`, `${aux} ${np}`] : [np]));
+      }
+      return out;
+    }
+    if (!aux) return [`${se}${part}`];
+    return se ? [`${aux} ${se}${part}`] : [`${aux} ${part}`, `${part} ${aux}`];
+  }
   const no = (fused, plain) => neg ? (fused && !se ? words(fused)[person] : 'не ' + se + plain) : se + plain;
   if (tense === 'pres') return [no(mk.negPres, words(mk.pres)[person])];
   if (tense === 'past') return [no(mk.negPast, words(mk.past)[person])];
@@ -190,7 +257,7 @@ export function promptFor(verb, aspect = 'impf') {
 function cellsFor(verb, lang) {
   const out = [];
   for (const aspect of ['impf', 'pf'].filter(a => hasLang(verb, lang, a)))
-    for (const tense of Object.keys(TENSES))
+    for (const tense of tensesFor(lang))
       for (let p = 0; p < 6; p++)
         for (const g of gendersFor(lang, tense, p, true))
           for (const neg of [false, true])
@@ -261,6 +328,11 @@ function classify(item, ans, match) {
   if (neg && rest && own.some(c => !c.neg && c.tense === item.tense &&
       c.forms.some(f => f === rest || loose(f) === loose(rest)))) return 'negation';
 
+  // a bare Serbian participle is a missing auxiliary, even though it looks like the MK l-form (čitala / читала)
+  if (item.lang === 'sr' && item.tense === 'past' && ['m', 'f', 'n'].some(g => {
+    const part = srParticiple(verb.sr, item.person, g);
+    return match(part) || match('ne ' + part);
+  })) return 'auxiliary';
   // Bleed: the other language's word, in either script ("jadam" for jedem, "једем" for јадам)
   const other = item.lang === 'sr' ? 'mk' : 'sr';
   const sk = skeleton(ans);
@@ -272,10 +344,6 @@ function classify(item, ans, match) {
   const ownLookalike = all.some(c => c.forms.some(f => skeleton(f) === sk));
   if (!ownLookalike && cellsFor(verb, other).some(c => c.forms.some(f => match(f) || skeleton(f) === sk))) return 'bleed';
 
-  if (item.lang === 'sr' && item.tense === 'past' && ['m', 'f', 'n'].some(g => {
-    const part = srParticiple(verb.sr, item.person, g);
-    return match(part) || match('ne ' + part);
-  })) return 'auxiliary';
 
   for (const v of Object.values(VERB_BY_ID)) {
     if (v === verb || !hasLang(v, item.lang, aspect) || v[item.lang].pres === verb[item.lang].pres) continue;
@@ -324,7 +392,7 @@ export function buildPool({ langs, tenses, polarity, aspects = ['impf', 'pf'], i
       for (const aspect of aspects)
         if (hasLang(verb, lang, aspect))
           for (const tense of tenses)
-            if (aspect === 'impf' || tense !== 'pres')
+            if ((aspect === 'impf' || tense !== 'pres') && (tense !== 'perf' || lang === 'mk'))
               for (let p = 0; p < 6; p++)
                 for (const g of gendersFor(lang, tense, p, includeNeuter))
                   for (const pol of polarity)

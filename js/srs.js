@@ -83,6 +83,7 @@ function verbClass(verb, lang, aspect, tense) {
     return ({ am: 'aš', im: 'iš', em: 'eš' }[end] === s2.slice(-2)) ? end : 'irr';
   }
   const mk = aspect === 'pf' ? verb.mk.pf : verb.mk;
+  if (tense === 'perf') return '*';                 // сум / си / сме / сте + l-form: same for every verb
   if (tense === 'past') {
     const end = words(mk.past)[0].slice(-2);
     return ['ав', 'ев', 'ов', 'ив'].includes(end) ? end : 'в';
@@ -416,6 +417,7 @@ export function skillName(key) {
       const t = TENSES[tense].en;
       const pf = aspect === 'pf' ? ' perfective' : '';
       if (lang === 'sr' && tense === 'past') return `${t} · ${pron} (${SR_AUX[person]})`;
+      if (lang === 'mk' && tense === 'perf') return `${t} · ${pron} (${['сум', 'си', 'no auxiliary', 'сме', 'сте', 'no auxiliary'][person]} + l-form)`;
       if (lang === 'sr' && tense === 'fut') return `${t} · ${pron} (${SR_FUT[person]})`;
       if (cls === 'irr') return `${t}${pf} · ${pron} · irregular verbs`;
       return `${t}${pf} · ${pron} · verbs like ${classExample(lang, tense, aspect, cls)}`;

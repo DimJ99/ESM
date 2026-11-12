@@ -256,3 +256,30 @@ test('bleed: the other language in either script', () => {
   assert.equal(run(item('mk', 'read', 'fut', 0), 'čitaću').error, 'bleed');
   assert.equal(run(item('sr', 'read', 'pres', 0), 'čitam').result, 'correct');
 });
+
+test('Macedonian perfect: сум + l-form', async () => {
+  const { mkLForms } = await import('../js/engine.js');
+  const f = (v, p, g, n = false, a = 'impf') => formsFor(VERB_BY_ID[v], 'mk', 'perf', p, g, n, a);
+  assert.deepEqual(f('be', 0, 'm'), ['сум бил', 'бил сум']);
+  assert.equal(f('be', 0, 'f')[0], 'сум била');
+  assert.deepEqual(f('read', 2, 'm'), ['читал']);                         // no auxiliary in the 3rd person
+  assert.equal(f('read', 2, 'f')[0], 'читала');
+  assert.equal(f('read', 3, null)[0], 'сме читале');
+  assert.equal(f('read', 5, null)[0], 'читале');
+  assert.equal(f('go', 0, 'm')[0], 'сум одел');
+  assert.equal(f('read', 0, 'm', false, 'pf')[0], 'сум прочитал');
+  assert.equal(f('come', 1, 'f', false, 'pf')[0], 'си дошла');
+  assert.equal(f('find', 0, 'm', false, 'pf')[0], 'сум нашол');
+  assert.equal(f('make', 0, 'm', false, 'pf')[0], 'сум направил');
+  assert.equal(f('read', 0, 'm', true)[0], 'не сум читал');
+  assert.ok(f('have', 0, 'm', true).includes('немал сум'));
+  assert.equal(f('wake', 0, 'f')[0], 'сум се будела');
+  assert.deepEqual(mkLForms(VERB_BY_ID.see.mk.pf), { m: 'видел', f: 'видела', n: 'видело', pl: 'виделе' });
+  // the placement-test miss: "сум бил" on a past prompt is now a tense mistake, not "other"
+  assert.equal(run(item('mk', 'be', 'past', 0), 'сум бил').error, 'tense');
+  assert.equal(run({ ...item('mk', 'be', 'perf', 0, 'm') }, 'јас сум бил').result, 'correct');
+  assert.equal(run({ ...item('mk', 'read', 'perf', 0, 'f') }, 'сум читал').error, 'gender');
+  // Serbian has no perfect prompts
+  const pool = buildPool({ langs: ['sr', 'mk'], tenses: ['perf'], polarity: ['pos'], aspects: ['impf'], includeNeuter: false });
+  assert.ok(pool.length && pool.every(i => i.lang === 'mk'));
+});

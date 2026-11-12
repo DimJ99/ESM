@@ -100,3 +100,15 @@ test('pool, twins and skills', () => {
   assert.ok(nounSkills(N('sr', 'brother', 'case', 'vidim')).includes('nanim|sr|a'));
   assert.ok(nounSkills(N('sr', 'store', 'case', 'idem')).includes('nmot|sr|acc'));
 });
+
+test('Macedonian counts groups of men with двајца / петмина', () => {
+  assert.equal(first(N('mk', 'student', 'count', 'n', 'pl', { n: 2 })), 'двајца студенти');
+  assert.equal(first(N('mk', 'brother', 'count', 'n', 'pl', { n: 5 })), 'петмина браќа');
+  assert.equal(first(N('mk', 'sister', 'count', 'n', 'pl', { n: 2 })), 'сестри');          // women: plain numbers
+  assert.equal(first(N('mk', 'person', 'count', 'n', 'pl', { n: 2 })), 'човека');          // два човека
+  assert.equal(run(N('mk', 'student', 'count', 'n', 'pl', { n: 3 }), 'тројца студенти').result, 'correct');
+  assert.equal(run(N('mk', 'student', 'count', 'n', 'pl', { n: 2 }), 'два студенти').error, 'mencount');
+  assert.equal(run(N('mk', 'student', 'count', 'n', 'pl', { n: 2 }), 'студенти').error, 'mencount');
+  assert.equal(run(N('mk', 'table', 'count', 'n', 'pl', { n: 2 }), 'две маси').result, 'correct');
+  assert.equal(run(N('mk', 'table', 'count', 'n', 'pl', { n: 2 }), 'два маси').error, 'agreement');
+});

@@ -89,9 +89,13 @@ const NUMS = {
   mk: { 2: 'два', 3: 'три', 4: 'четири', 5: 'пет', 6: 'шест', 10: 'десет' },
 };
 const NUM_WORDS = new Set(['dva', 'dve', 'tri', 'četiri', 'cetiri', 'pet', 'šest', 'sest', 'deset',
-  'два', 'две', 'двајца', 'три', 'тројца', 'четири', 'четворица', 'пет', 'петмина', 'шест', 'десет']);
+  'два', 'две', 'двајца', 'три', 'тројца', 'четири', 'четворица', 'пет', 'петмина', 'шест', 'шестмина', 'десет', 'десетмина']);
+// Macedonian counts groups of men (or mixed groups) with special numbers: двајца студенти, петмина браќа.
+const MK_MEN = { 2: 'двајца', 3: 'тројца', 4: 'четворица', 5: 'петмина', 6: 'шестмина', 10: 'десетмина' };
+export const menCount = noun => noun.mk.g === 'm' && PEOPLE.has(noun.id) && noun.id !== 'person';
 export function numberWord(item) {
   const noun = NOUN_BY_ID[item.nounId];
+  if (item.lang === 'mk' && menCount(noun)) return MK_MEN[item.n];
   if (item.n !== 2) return NUMS[item.lang][item.n];
   return item.lang === 'sr' ? (noun.sr.g === 'f' ? 'dve' : 'dva') : (noun.mk.g === 'm' ? 'два' : 'две');
 }
@@ -194,7 +198,8 @@ export function nounForms(item) {
   const mk = noun.mk;
   if (item.kind === 'art') return [mkArticle(noun, item.detail, item.num)];
   if (item.kind === 'pl') return [mk.pl];
-  if (item.kind === 'count') return [mk.cnt || mk.pl];
+  // groups of men: the number word is part of the answer (двајца студенти)
+  if (item.kind === 'count') return menCount(noun) ? [`${numberWord(item)} ${mk.pl}`] : [mk.cnt || mk.pl];
   if (item.num === 'sg' && mk.kin) return [`${mk.sg} ${MK_CLITIC[item.detail]}`];
   return [`${mkPoss(item.detail, mk.g, item.num)} ${item.num === 'pl' ? mk.pl : mk.sg}`];
 }
@@ -209,9 +214,10 @@ function prepare(item, raw) {
     const rest = toks.filter(t => !frame.has(t));
     if (rest.length) toks = rest;
   }
-  if (item.kind === 'count' && toks.length > 1 && (NUM_WORDS.has(toks[0]) || /^\d+$/.test(toks[0]))) {
+  const men = item.kind === 'count' && item.lang === 'mk' && menCount(NOUN_BY_ID[item.nounId]);
+  if (item.kind === 'count' && !men && toks.length > 1 && (NUM_WORDS.has(toks[0]) || /^\d+$/.test(toks[0]))) {
     const w = toks.shift();
-    if (!/^\d+$/.test(w) && item.n === 2 && loose(w) !== loose(numberWord(item)) && ['dva', 'dve', 'два', 'две'].includes(w)) numWrong = true;
+    if (!/^\d+$/.test(w) && loose(w) !== loose(numberWord(item))) numWrong = true;
   }
   return { ans: toks.join(' '), numWrong };
 }
@@ -275,6 +281,11 @@ function classifyNoun(item, ans) {
     }
   }
 
+  if (item.kind === 'count' && item.lang === 'mk' && menCount(noun)) {
+    const toks = ans.split(' ');
+    if (eq(noun.mk.pl) || (toks.length === 2 && toks[1] === noun.mk.pl))
+      return 'mencount';                                                              // студенти / два студенти
+  }
   if (item.lang === 'mk' && item.kind !== 'own') {
     const mk = noun.mk;
     const labelled = [['sg', mk.sg], ['pl', mk.pl], ['sg', mk.def], ['pl', mk.plDef], ['cnt', mk.cnt]];
@@ -350,13 +361,13 @@ export function nounSkills(item) {
   const pl = mk.sg && item.num === 'pl' ? [`npl|mk|${item.nounId}`] : [];
   if (item.kind === 'art') return [`nart|mk|${item.detail}|${item.num}|${mk.g}`, ...pl, stem];
   if (item.kind === 'pl') return [`npl|mk|${item.nounId}`, stem];
-  if (item.kind === 'count') return [`ncnt|mk|${mk.cnt ? 'cnt' : 'pl'}`, ...(mk.cnt ? [] : pl), stem];
+  if (item.kind === 'count') return [`ncnt|mk|${mk.cnt ? 'cnt' : menCount(noun) ? 'men' : 'pl'}`, ...(mk.cnt ? [] : pl), stem];
   return [`nown|mk|${item.num === 'sg' && mk.kin ? 'kin' : 'poss'}|${item.num}`, `nposs|mk|${item.detail}`, ...pl, stem];
 }
 
 // Which skill kind a decoded noun mistake points at.
 export const NOUN_BLAME = {
-  case: 'ncase', animacy: 'nanim', motion: 'nmot', counting: 'ncnt', counted: 'ncnt',
+  case: 'ncase', animacy: 'nanim', motion: 'nmot', counting: 'ncnt', counted: 'ncnt', mencount: 'ncnt',
   agreement: 'nown', ownership: 'nown', possessive: 'nposs', article: 'nart', plural: 'npl', diacritics: 'nstem',
 };
 export const nounNumberBlame = item => item.lang === 'sr' ? 'ncase' : item.kind === 'art' ? 'nart' : 'npl';
@@ -373,7 +384,7 @@ export function nounSkillName(key) {
       '24m': '2–4 + masculine / neuter → genitive singular (dva grada)',
       '24f': '2–4 + feminine → nominative plural (dve kuće)',
       5: '5 and up → genitive plural (pet gradova)',
-      cnt: 'counted plural (два стола)', pl: 'counting with the plural (две куќи)',
+      cnt: 'counted plural (два стола)', pl: 'counting with the plural (две куќи)', men: 'counting men (двајца студенти, петмина браќа)',
     }[a];
     case 'nown': return lang === 'sr' ? `possessive agreement · ${G_NAME[a]} ${NUM_NAME[b]} (${srPoss(0, a, b)})`
       : a === 'kin' ? 'ownership · close family (сестра ми)' : `ownership · мој + article (${b === 'pl' ? 'моите' : 'мојот'} …)`;

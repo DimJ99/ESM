@@ -1,5 +1,5 @@
 // Offline support. The shell is precached on install so the app opens offline.
-const VERSION = 'esm-v15';
+const VERSION = 'esm-v16';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/adjectives.js', 'js/adjEngine.js', 'js/app.js', 'js/checkpoint.js', 'js/connEngine.js', 'js/connectors.js', 'js/engine.js', 'js/nounEngine.js',

@@ -5,7 +5,7 @@ progress stays on the device.
 
 - **Serbian**: ekavian, Latin script (č ć š ž đ)
 - **Macedonian**: Cyrillic (ѓ ќ ѕ љ њ џ ј)
-- 74 common verbs × present / past / future × ja·ti·on·mi·vi·oni × affirmative / negative
+- 74 common verbs × present / past / future (+ the Macedonian perfect: сум бил, тој дошол) × ja·ti·on·mi·vi·oni × affirmative / negative
 - Aspect pairs in both languages: perfectives drilled in past + future (pročitao sam, pročitaću · прочитав, ќе прочитам); reflexives with se / се
   (Serbian past also drilled by gender M / F / N)
 - Negation done properly: *ne čitam, nisam čitao, neću čitati, nemam* · *не читам, нема да читам, немам*
@@ -13,7 +13,7 @@ progress stays on the device.
 - Five modules, each in any language mode:
   - **Verbs** — conjugation (below)
   - **Nouns** — 117 nouns. Serbian cases through their trigger (*idem u ___ (prodavnica)* → *prodavnicu*),
-    counting (*dva grada, dve kuće, pet gradova*), possessives (*moja sestra*); Macedonian articles
+    counting (*dva grada, dve kuće, pet gradova*; MK *двајца студенти, петмина браќа*), possessives (*moja sestra*); Macedonian articles
     (*столот / столов / столон*), plurals, counted forms (*два стола*), ownership (*сестра ми* / *моите пријатели*)
   - **Connectors** — fill-in-the-blank sentences (*ali / но*, *jer / затоа што*, *da / дека* …), plus a fillers list
   - **Adjectives** — agreement with real nouns: Serbian in case frames (*idem u ___ (nov · prodavnica)* → *novu prodavnicu*,

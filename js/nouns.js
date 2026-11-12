@@ -85,7 +85,7 @@ export const NOUNS = [
     mk: { g: 'f', sg: 'жена', def: 'жената', pl: 'жени', plDef: 'жените' } },
   { id: 'person', en: 'person / people', first: true,
     sr: { g: 'm', anim: true, sg: 'čovek čoveka čoveku čoveka čoveče čovekom čoveku', pl: 'ljudi ljudi ljudima ljude ljudi ljudima ljudima' },
-    mk: { g: 'm', sg: 'човек', def: 'човекот', pl: 'луѓе', plDef: 'луѓето' } },
+    mk: { g: 'm', sg: 'човек', def: 'човекот', pl: 'луѓе', plDef: 'луѓето', cnt: 'човека' } },
   { id: 'neighbor', en: 'neighbor',
     sr: { g: 'm', anim: true, sg: 'komšija komšije komšiji komšiju komšija/komšijo komšijom komšiji', pl: 'komšije komšija komšijama komšije komšije komšijama komšijama', note: 'masculine but declines like a feminine -a noun' },
     mk: { g: 'm', sg: 'сосед', def: 'соседот', pl: 'соседи', plDef: 'соседите' } },
