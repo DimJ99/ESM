@@ -40,7 +40,9 @@ export const ERROR_TYPES = {
   gender:     'Wrong gender',
   person:     'Wrong person (ja / ti / on…)',
   tense:      'Wrong tense',
-  language:   'Mixed up SR ↔ MK',
+  bleed:      'Language bleed (SR ↔ MK)',
+  script:     'Wrong script (latinica ↔ кирилица)',
+  language:   'Language bleed (SR ↔ MK)',   // older saves
   auxiliary:  'Missing auxiliary (sam / si / je…)',
   ke:         'Missing ќе',
   negation:   'Negation (ne / nisam / neću / нема да)',
@@ -204,6 +206,15 @@ export function normalize(s) {
 }
 
 const LOOSE = { č: 'c', ć: 'c', š: 's', ž: 'z', đ: 'd', ѓ: 'г', ќ: 'к', ѕ: 'з', ѐ: 'е', ѝ: 'и' };
+// Script-neutral skeleton for spotting bleed between the languages: Cyrillic →
+// Latin, then special letters stripped, so "jadam" ≈ "јадам" and "kniga" ≈ "книга".
+const CYR = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', ѓ: 'đ', ђ: 'đ', е: 'e', ж: 'ž', з: 'z', ѕ: 'dz', и: 'i', ј: 'j',
+  к: 'k', л: 'l', љ: 'lj', м: 'm', н: 'n', њ: 'nj', о: 'o', п: 'p', р: 'r', с: 's', т: 't', ќ: 'ć', ћ: 'ć',
+  у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'č', џ: 'dž', ш: 'š', ѐ: 'e', ѝ: 'i' };
+export function skeleton(s) {
+  return loose(s.replace(/[а-яѓђѕјљњќћџѐѝ]/g, c => CYR[c] ?? c));
+}
+
 export function loose(s) {
   return s.replace(/dj/g, 'd').replace(/[čćšžđѓќѕѐѝ]/g, c => LOOSE[c]);
 }
@@ -216,7 +227,7 @@ function stripPronoun(s, lang) {
   return all.includes(parts[0]) ? parts.slice(1).join(' ') : s;
 }
 
-function editDistance(a, b) {
+export function editDistance(a, b) {
   const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
   for (let j = 1; j <= b.length; j++) d[0][j] = j;
   for (let i = 1; i <= a.length; i++)
@@ -250,8 +261,16 @@ function classify(item, ans, match) {
   if (neg && rest && own.some(c => !c.neg && c.tense === item.tense &&
       c.forms.some(f => f === rest || loose(f) === loose(rest)))) return 'negation';
 
+  // Bleed: the other language's word, in either script ("jadam" for jedem, "једем" for јадам)
   const other = item.lang === 'sr' ? 'mk' : 'sr';
-  if (cellsFor(verb, other).some(c => c.forms.some(f => match(f)))) return 'language';
+  const sk = skeleton(ans);
+  // Right word, wrong alphabet: "читам" for Serbian čitam
+  const otherScript = item.lang === 'sr' ? /[а-яѓђѕјљњќћџ]/.test(ans) : /[a-zčćšžđ]/.test(ans);
+  if (otherScript && own.some(c => c.tense === item.tense && c.person === item.person &&
+      c.neg === neg && c.gender === item.gender && c.forms.some(f => skeleton(f) === sk))) return 'script';
+  // (only when it isn't also a form of the language asked — čitaš / читаш look the same)
+  const ownLookalike = all.some(c => c.forms.some(f => skeleton(f) === sk));
+  if (!ownLookalike && cellsFor(verb, other).some(c => c.forms.some(f => match(f) || skeleton(f) === sk))) return 'bleed';
 
   if (item.lang === 'sr' && item.tense === 'past' && ['m', 'f', 'n'].some(g => {
     const part = srParticiple(verb.sr, item.person, g);
@@ -284,6 +303,9 @@ export function check(item, rawAnswer, { lenient }) {
 }
 
 export function itemKey(item) {
+  if (item.mod === 'adj') return `a|${item.lang}|${item.adjId}|${item.kind}|${item.detail ?? ''}|${item.num}|${item.ag ?? ''}`;
+  if (item.mod === 'pron') return `p|${item.lang}|${item.kind}|${item.pid}|${item.detail ?? ''}`;
+  if (item.mod === 'noun') return `n|${item.lang}|${item.nounId}|${item.kind}|${item.detail ?? ''}|${item.num ?? ''}`;
   return `${item.lang}|${item.verbId}|${item.tense}|${item.person}|${item.gender || '-'}${item.neg ? '|neg' : ''}${item.aspect === 'pf' ? '|pf' : ''}`;
 }
 
@@ -316,9 +338,11 @@ export function pronounFor(item) {
   const L = LANGS[item.lang];
   const opts = L.pronouns[item.person];
   let i = 0;
-  if (item.gender) {
-    if (item.person === 2) i = { m: 0, f: 1, n: 2 }[item.gender];
-    if (item.person === 5) i = item.gender === 'f' ? 1 : 0;
+  // showGender: display only (twin mode keeps ona ↔ таа without making the prompt gendered)
+  const g = item.gender || item.showGender;
+  if (g) {
+    if (item.person === 2) i = { m: 0, f: 1, n: 2 }[g];
+    if (item.person === 5) i = Math.min(g === 'f' ? 1 : 0, opts.length - 1);
   } else {
     i = Math.floor(Math.random() * opts.length);
   }

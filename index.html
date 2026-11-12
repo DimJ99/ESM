@@ -28,8 +28,15 @@
     <section class="view" id="view-practice">
       <div class="seg langpick" id="langpick">
         <button data-l="sr">Srpski</button>
-        <button data-l="mix">Mix</button>
+        <button data-l="twin">Twin</button>
         <button data-l="mk">Македонски</button>
+      </div>
+      <div class="seg modpick" id="modpick">
+        <button data-m="verbs">Verbs</button>
+        <button data-m="nouns">Nouns</button>
+        <button data-m="adjectives">Adjectives</button>
+        <button data-m="pronouns">Pronouns</button>
+        <button data-m="connectors">Connectors</button>
       </div>
 
       <div class="test-bar" id="test-bar"></div>
@@ -38,6 +45,7 @@
         <div class="chips" id="chips"></div>
         <hr>
         <div class="word" id="word"></div>
+        <div class="subword" id="subword" hidden></div>
         <button type="button" class="hint-pill" id="hint-btn"></button>
         <hr>
 
@@ -60,6 +68,10 @@
           <button type="button" class="btn ghost" id="reveal-btn">Show answer</button>
         </div>
       </div>
+      <details class="panel fillers" id="fillers" hidden>
+        <summary>Fillers to use in conversation</summary>
+        <div id="fillers-body"></div>
+      </details>
       <div id="test-result" hidden></div>
       <p class="empty" id="empty" hidden>Nothing to practise — turn on at least one tense and form in Settings.</p>
     </section>
@@ -87,6 +99,27 @@
         <h2>Forms</h2>
         <label class="row"><span>Affirmative<small>čitam · читам</small></span><input type="checkbox" data-set="polarity" value="pos"></label>
         <label class="row"><span>Negative<small>ne čitam, nisam čitao · не читам, нема да читам</small></span><input type="checkbox" data-set="polarity" value="neg"></label>
+      </div>
+      <div class="panel">
+        <h2>Nouns</h2>
+        <label class="row"><span>Cases in context<small>Serbian · idem u ___ (prodavnica) → prodavnicu</small></span><input type="checkbox" data-set="nounKinds" value="case"></label>
+        <label class="row"><span>Articles &amp; plurals<small>Macedonian · столот / столов / столон, столови</small></span><input type="checkbox" data-set="nounKinds" value="art"></label>
+        <label class="row"><span>Counting<small>dva grada, dve kuće, pet gradova · два стола</small></span><input type="checkbox" data-set="nounKinds" value="count"></label>
+        <label class="row"><span>Possessives &amp; ownership<small>moja sestra · сестра ми, моите пријатели</small></span><input type="checkbox" data-set="nounKinds" value="own"></label>
+      </div>
+      <div class="panel">
+        <h2>Adjectives</h2>
+        <label class="row"><span>Agreement in a case<small>Serbian · idem u ___ (nov · prodavnica) → novu prodavnicu</small></span><input type="checkbox" data-set="adjKinds" value="agree"></label>
+        <label class="row"><span>Possessive + adjective + noun<small>moja nova prodavnica · мојот нов компјутер</small></span><input type="checkbox" data-set="adjKinds" value="poss3"></label>
+        <label class="row"><span>Article on the first word<small>Macedonian · новиот компјутер</small></span><input type="checkbox" data-set="adjKinds" value="art"></label>
+        <label class="row"><span>Plain agreement<small>Macedonian · нов компјутер, нова куќа</small></span><input type="checkbox" data-set="adjKinds" value="indef"></label>
+        <label class="row"><span>Comparatives<small>veća kuća · по-голема куќа</small></span><input type="checkbox" data-set="adjKinds" value="cmp"></label>
+      </div>
+      <div class="panel">
+        <h2>Pronouns</h2>
+        <label class="row"><span>Drills<small>Vidim ___ → ga · ___ гледам → го · doubling, clusters</small></span><input type="checkbox" data-set="pronKinds" value="drill"></label>
+        <label class="row"><span>Personal forms<small>on → dativ, short → mu · тој → direct object → го</small></span><input type="checkbox" data-set="pronKinds" value="form"></label>
+        <label class="row"><span>Possessive forms<small>my + feminine → moja · мојата · мајка ми</small></span><input type="checkbox" data-set="pronKinds" value="poss"></label>
       </div>
       <div class="panel">
         <h2>Aspect</h2>

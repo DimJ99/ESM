@@ -93,7 +93,8 @@ test('decodes mistakes', () => {
   assert.equal(err(item('sr', 'read', 'pres', 0), 'čitaš'), 'person');
   assert.equal(err(item('sr', 'read', 'past', 0, 'm'), 'čitao si'), 'person');
   assert.equal(err(item('sr', 'read', 'pres', 0), 'čitao sam'), 'tense');
-  assert.equal(err(item('sr', 'read', 'pres', 0), 'читам'), 'language');
+  assert.equal(err(item('sr', 'read', 'pres', 0), 'читам'), 'script');     // right word, Cyrillic
+  assert.equal(err(item('sr', 'eat', 'pres', 0), 'јадам'), 'bleed');       // the Macedonian word
   assert.equal(err(item('sr', 'read', 'past', 0, 'f'), 'čitala'), 'auxiliary');
   assert.equal(err(item('mk', 'read', 'fut', 0), 'читам'), 'ke');
   assert.equal(err(item('sr', 'read', 'pres', 0), 'pišem'), 'verb');
@@ -246,4 +247,12 @@ test('Belgrade future: ću da + present', async () => {
   assert.equal(formsFor(VERB_BY_ID.sleep, 'sr', 'fut', 0)[0], 'ću da spavam');
   assert.equal(formsFor(VERB_BY_ID.sleep, 'sr', 'fut', 0, null, true)[0], 'neću da spavam');
   setPrefs({ srFutDa: false });
+});
+
+test('bleed: the other language in either script', () => {
+  assert.equal(run(item('sr', 'eat', 'pres', 0), 'jadam').error, 'bleed');      // јадам, in Latin
+  assert.equal(run(item('sr', 'eat', 'pres', 0), 'јадам').error, 'bleed');      // јадам, in Cyrillic
+  assert.equal(run(item('mk', 'eat', 'pres', 0), 'једем').error, 'bleed');      // jedem, in Cyrillic
+  assert.equal(run(item('mk', 'read', 'fut', 0), 'čitaću').error, 'bleed');
+  assert.equal(run(item('sr', 'read', 'pres', 0), 'čitam').result, 'correct');
 });

@@ -132,3 +132,40 @@ test('leeches need misses on more than one day', async () => {
   s = schedule(s, 'again', now + 2 * DAY);
   assert.equal(isLeech(s), true);
 });
+
+test('slow answers can grow a skill, but not into mastered', async () => {
+  const { fastEnough, MASTERED_DAYS } = await import('../js/srs.js');
+  assert.equal(fastEnough(2000, 'čitam'), true);
+  assert.equal(fastEnough(9000, 'čitam'), false);
+  assert.equal(fastEnough(null, 'čitam'), true);            // unknown (older answers) isn't penalised
+  let now = 1e12, s;
+  for (let i = 0; i < 8; i++) { s = schedule(s, 'good', now, false); now = s.due + 1; }
+  assert.ok(s.iv < MASTERED_DAYS, `slow-only skill reached ${s.iv} days`);
+  s = schedule(s, 'good', now, true);                         // one fast correct answer when due
+  assert.ok(s.iv >= MASTERED_DAYS);
+});
+
+test('bleed is its own per-word skill', () => {
+  const it = { lang: 'sr', verbId: 'eat', tense: 'pres', person: 0, gender: null, neg: false, aspect: 'impf' };
+  const g = grade(it, 'jadam');                               // MK јадам typed in Latin
+  assert.deepEqual(failed(g), ['bleed|sr|eat']);
+});
+
+test('nouns and connectors do not repeat the same word back to back', async () => {
+  const { withNumber } = await import('../js/nounEngine.js');
+  for (const module of ['nouns', 'connectors']) {
+    const state = { settings: { langs: ['sr', 'mk'], module, nounKinds: ['case', 'art', 'count', 'own'] }, skills: {}, attempts: [] };
+    let recent = [], same = 0;
+    for (let i = 0; i < 200; i++) {
+      let it = pickNext(state, recent);
+      if (it.mod === 'noun') it = withNumber(it);
+      const id = x => x && `${x.lang}|${x.nounId || x.connId}`;
+      if (id(it) === id(recent.at(-1))) same++;
+      const outcome = Math.random() < 0.7 ? { result: 'correct', expected: 'x' } : { result: 'wrong', error: 'other', expected: 'x' };
+      for (const [k, g] of Object.entries(attribute(it, outcome, '', false))) state.skills[k] = schedule(state.skills[k], g);
+      state.attempts.push({ ok: outcome.result === 'correct' ? 1 : 0, mod: module === 'nouns' ? 'n' : 'c' });
+      recent = [...recent.slice(-9), it];
+    }
+    assert.ok(same <= 4, `${module}: ${same}/200 back to back`);
+  }
+});

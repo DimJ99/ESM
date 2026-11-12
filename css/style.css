@@ -71,7 +71,7 @@ main { max-width: 560px; margin: 0 auto; padding: 8px 16px 24px; }
 /* language picker */
 .langpick button.on[data-l="sr"] { background: var(--sr); color: #0d0f14; }
 .langpick button.on[data-l="mk"] { background: var(--mk); color: #0d0f14; }
-.langpick button.on[data-l="mix"] { background: linear-gradient(90deg, var(--sr), var(--mk)); color: #0d0f14; }
+.langpick button.on[data-l="twin"] { background: linear-gradient(90deg, var(--sr), var(--mk)); color: #0d0f14; }
 
 /* practice card — tinted by language */
 .card {
@@ -387,3 +387,38 @@ form { display: flex; gap: 8px; }
 .result .vs { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .result .vs span { color: var(--muted); flex: 1; }
 #test-result .btn.primary { margin: 14px 0 0; }
+
+.cp-summary { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); margin: -2px 0 10px; }
+.cp-summary b { color: var(--text); }
+#cp-export { margin-top: 14px; }
+
+/* modules */
+.modpick { margin-top: -6px; }
+.modpick button.on { background: color-mix(in srgb, #fff 16%, var(--surface-2)); color: var(--text); }
+.modpick.locked { opacity: .45; pointer-events: none; }
+.word .blank { display: inline-block; min-width: 2.2em; border-bottom: 3px solid var(--accent); color: transparent; line-height: .9; }
+.word.sentence { font-size: clamp(24px, 7vw, 32px); line-height: 1.3; font-weight: 700; }
+.subword { text-align: center; color: var(--muted); font-size: 15px; margin: -6px 0 14px; }
+.conj-note { font-size: 13px; color: var(--muted); margin: 8px 2px 4px; }
+.conj tbody th small, .fillers-table th small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; white-space: normal; }
+.mod-label { margin: 0 0 10px; }
+.fillers { margin-top: 12px; }
+.fillers summary { cursor: pointer; font-weight: 700; color: var(--text); }
+.fillers-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 15px; }
+.fillers-table th, .fillers-table td { text-align: left; padding: 7px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+.fillers-table th { font-weight: 600; width: 46%; }
+.fillers-table td.sr { color: var(--sr); font-weight: 700; }
+.fillers-table td.mk { color: var(--mk); font-weight: 700; }
+.fillers-table td.conj-note { border-top: 0; padding-top: 0; }
+
+.conj table.nouns, .conj table.conn { table-layout: fixed; }
+.conj table.nouns td, .conj table.conn td { overflow-wrap: break-word; }
+.conj table.nouns td { font-size: 13.5px; padding: 6px 4px; }
+.conj table.nouns.mk tbody th { width: 16%; }
+.conj table.nouns tbody th { width: 27%; white-space: normal; font-size: 12.5px; padding: 6px 4px; }
+.conj table.conn tbody th { width: 2.6em; }
+.conj table.conn td { font-weight: 500; }
+.conj table.conn td b { color: var(--accent); font-weight: 800; }
+
+.modpick { flex-wrap: wrap; }
+.modpick button { flex: 1 1 30%; }

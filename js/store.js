@@ -1,6 +1,6 @@
 // Persistence (localStorage) and stats aggregation. Scheduling lives in srs.js.
 import { buildPool, PERSON_LABELS } from './engine.js';
-import { applyAnswer, rebuildSkills, summary, rollingAccuracy } from './srs.js';
+import { applyAnswer, rebuildSkills, summary, rollingAccuracy, fastEnough, attemptMod } from './srs.js';
 
 const KEY = 'esm.v1';
 const MAX_ATTEMPTS = 20000;
@@ -13,7 +13,27 @@ const DEFAULT_SETTINGS = {
   lenient: true,
   srFutDa: false,
   includeNeuter: false,
+  module: 'verbs',
+  nounKinds: ['case', 'art', 'count', 'own'],
+  pronKinds: ['drill', 'form', 'poss'],
+  adjKinds: ['agree', 'poss3', 'cmp', 'art', 'indef'],
 };
+
+// Compact storage form of a prompt, shared by practice history and checkpoint misses.
+export function encodeItem(item) {
+  if (item.mod === 'noun') return { mod: 'n', l: item.lang, nn: item.nounId, k: item.kind, d: item.detail, nu: item.num, ...(item.n && { c: item.n }) };
+  if (item.mod === 'conn') return { mod: 'c', l: item.lang, cn: item.connId };
+  if (item.mod === 'pron') return { mod: 'p', l: item.lang, k: item.kind, pi: item.pid, d: item.detail };
+  if (item.mod === 'adj') return { mod: 'a', l: item.lang, ai: item.adjId, k: item.kind, d: item.detail, nu: item.num, ag: item.ag, nn: item.nounId };
+  return { l: item.lang, v: item.verbId, te: item.tense, p: item.person, g: item.gender, n: item.neg ? 1 : 0, pf: item.aspect === 'pf' ? 1 : 0 };
+}
+export function decodeItem(a) {
+  if (a.mod === 'n') return { mod: 'noun', lang: a.l, nounId: a.nn, kind: a.k, detail: a.d, num: a.nu, ...(a.c && { n: a.c }) };
+  if (a.mod === 'c') return { mod: 'conn', lang: a.l, connId: a.cn };
+  if (a.mod === 'p') return { mod: 'pron', lang: a.l, kind: a.k, pid: a.pi, detail: a.d };
+  if (a.mod === 'a') return { mod: 'adj', lang: a.l, adjId: a.ai, kind: a.k, detail: a.d, num: a.nu, ag: a.ag, nounId: a.nn };
+  return { lang: a.l, verbId: a.v, tense: a.te, person: a.p, gender: a.g ?? null, neg: !!a.n, aspect: a.pf ? 'pf' : 'impf' };
+}
 
 function blank() {
   return { attempts: [], skills: {}, checkpoints: [], sessionStart: Date.now(), settings: { ...DEFAULT_SETTINGS } };
@@ -44,14 +64,15 @@ export function save(state) {
   } catch { /* storage full or blocked — the session still works */ }
 }
 
-export function record(state, item, outcome, answer, hinted) {
-  const grades = applyAnswer(state, item, outcome, answer, hinted);
+// ms: how long the answer took, from the card appearing to pressing Check.
+export function record(state, item, outcome, answer, hinted, ms = null) {
+  const grades = applyAnswer(state, item, outcome, answer, hinted, Date.now(), ms);
   const failed = Object.keys(grades).filter(k => grades[k] === 'again');
 
   state.attempts.push({
-    t: Date.now(), l: item.lang, v: item.verbId, te: item.tense, p: item.person,
-    g: item.gender, n: item.neg ? 1 : 0, pf: item.aspect === 'pf' ? 1 : 0, ok: outcome.result === 'wrong' ? 0 : outcome.result === 'close' ? 2 : 1,
+    t: Date.now(), ...encodeItem(item), ok: outcome.result === 'wrong' ? 0 : outcome.result === 'close' ? 2 : 1,
     e: outcome.error, a: answer.slice(0, 60), h: hinted ? 1 : 0, f: failed,
+    ...(ms != null && { ms: Math.round(ms), fast: fastEnough(ms, outcome.expected || '') ? 1 : 0 }),
   });
   save(state);
   return failed;
@@ -88,11 +109,12 @@ function tally(list, keyFn) {
   return m;
 }
 
-// window: 'session' | number of days | 0 for all time
-export function stats(state, window) {
+// window: 'session' | number of days | 0 for all time; mod: 'verbs' / 'nouns' / 'connectors' (null = all)
+export function stats(state, window, mod = null) {
   const now = Date.now();
-  const list = window === 'session' ? sessionAttempts(state)
-    : window ? state.attempts.filter(a => now - a.t < window * DAY) : state.attempts;
+  const inMod = a => !mod || attemptMod(a) === mod;
+  const list = (window === 'session' ? sessionAttempts(state)
+    : window ? state.attempts.filter(a => now - a.t < window * DAY) : state.attempts).filter(inMod);
   const correct = list.filter(a => a.ok).length;
 
   const days = new Set(state.attempts.map(a => dayKey(a.t)));
@@ -123,10 +145,18 @@ export function stats(state, window) {
     byAspect: tally(list.filter(a => a.te !== 'pres'), a => a.pf ? 'pf' : 'impf'),
     weakVerbs: verbs.slice(0, 8),
     mistakes: list.filter(a => !a.ok).slice(-15).reverse(),
-    srs: summary(state, now),
-    rolling: rollingAccuracy(state),
-    poolSize: buildPool(state.settings).length,
+    list,
+    srs: summary(state, now, mod),
+    rolling: rollingAccuracy(state, 30, mod),
+    speed: speedStats(list.filter(a => a.ok === 1 && a.ms != null)),
   };
+}
+
+// Fluency over correct answers: median time, and how many were fast enough to count toward mastery.
+function speedStats(timed) {
+  if (!timed.length) return null;
+  const ms = timed.map(a => a.ms).sort((a, b) => a - b);
+  return { median: ms[Math.floor(ms.length / 2)], fast: timed.filter(a => a.fast).length / timed.length, n: timed.length };
 }
 
 function weekStart(t) {
@@ -137,10 +167,11 @@ function weekStart(t) {
 }
 
 // This week (since Monday) against the average of earlier weeks you practised in.
-export function weekly(state) {
+export function weekly(state, mod = null) {
   const thisWeek = weekStart(Date.now());
   const weeks = new Map();
   for (const a of state.attempts) {
+    if (mod && attemptMod(a) !== mod) continue;
     const w = weekStart(a.t);
     if (!weeks.has(w)) weeks.set(w, []);
     weeks.get(w).push(a);
