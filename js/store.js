@@ -16,7 +16,7 @@ const DEFAULT_SETTINGS = {
 };
 
 function blank() {
-  return { attempts: [], skills: {}, sessionStart: Date.now(), settings: { ...DEFAULT_SETTINGS } };
+  return { attempts: [], skills: {}, checkpoints: [], sessionStart: Date.now(), settings: { ...DEFAULT_SETTINGS } };
 }
 
 export function load() {
@@ -55,6 +55,12 @@ export function record(state, item, outcome, answer, hinted) {
   });
   save(state);
   return failed;
+}
+
+// Checkpoints are kept apart from practice: they never touch attempts, skills or the session.
+export function saveCheckpoint(state, summary) {
+  state.checkpoints.push(summary);
+  save(state);
 }
 
 // A session is just a start time — starting a new one never deletes data.
@@ -163,7 +169,7 @@ export function exportData(state) {
 export function importData(text) {
   const data = JSON.parse(text);
   if (data.app !== 'esm' || !Array.isArray(data.attempts)) throw new Error('Not an ESM backup file');
-  return upgrade({ attempts: data.attempts, skills: data.skills, sessionStart: data.sessionStart || Date.now(), settings: data.settings });
+  return upgrade({ attempts: data.attempts, skills: data.skills, checkpoints: data.checkpoints || [], sessionStart: data.sessionStart || Date.now(), settings: data.settings });
 }
 
 export function reset() {

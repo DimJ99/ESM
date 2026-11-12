@@ -367,3 +367,23 @@ form { display: flex; gap: 8px; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* weekly checkpoint */
+.test-bar { margin: -4px 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--muted); }
+.test-bar:has(.test-start) { flex-wrap: wrap; gap: 8px; }
+.test-bar .test-label { flex-basis: 100%; }
+.test-bar .test-start { flex: 1; }
+.test-bar .test-start { margin: 0; font-size: 14px; padding: 9px 14px; border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.test-bar .test-start[data-lang="sr"] { --accent: var(--sr); }
+.test-bar .test-start[data-lang="mk"] { --accent: var(--mk); }
+.panel .sub.cp-lang { margin: 12px 0 8px; color: var(--text); font-weight: 700; }
+.test-bar .btn.ghost { padding: 6px 10px; }
+.langpick.locked { opacity: .45; pointer-events: none; }
+.card.testing { box-shadow: 0 0 0 2px #fff inset, 0 20px 50px -30px #000; }
+.result .score { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 10px; }
+.result .score b { font-size: 48px; font-weight: 800; line-height: 1; }
+.result .score span { font-size: 20px; color: var(--muted); }
+.result .score em { font-style: normal; margin-left: auto; font-size: 24px; font-weight: 800; }
+.result .vs { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.result .vs span { color: var(--muted); flex: 1; }
+#test-result .btn.primary { margin: 14px 0 0; }

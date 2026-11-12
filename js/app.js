@@ -1,5 +1,6 @@
 import { LANGS, TENSES, ASPECTS, ERROR_TYPES, GENDER_TAG, GENDERS, VERB_BY_ID, check, formsFor, groupTag, setPrefs, hintFor, promptFor, pronounFor, tenseLabel } from './engine.js';
 import * as store from './store.js';
+import { buildCheckpoint, summarize, CHECKPOINT_SIZE } from './checkpoint.js';
 import { pickNext, skillName, SKILL_KINDS, MASTERED_DAYS, LEECH_LAPSES, TARGET } from './srs.js';
 
 const $ = id => document.getElementById(id);
@@ -13,15 +14,20 @@ let current = null;   // { item, pronoun }
 let answered = false;
 let hinted = false;
 let recent = [];      // items shown this run, for spacing and variety
+let test = null;      // weekly checkpoint in progress: { items, results }
 
 // ---------- practice ----------
 
 function next() {
-  const item = pickNext(state, recent);
+  if (test && test.results.length >= test.items.length) return finishTest();
+  const item = test ? test.items[test.results.length] : pickNext(state, recent);
+  $('test-result').hidden = true;
   $('card').hidden = !item;
   $('empty').hidden = !!item;
   if (!item) return;
-  recent = [...recent.slice(-9), item];
+  if (!test) recent = [...recent.slice(-9), item];
+  $('card').classList.toggle('testing', !!test);
+  renderTestBar();
 
   current = { item, pronoun: pronounFor(item) };
   answered = false;
@@ -48,7 +54,7 @@ function next() {
   ].filter(Boolean).join('');
   $('word').textContent = promptFor(verb, item.aspect);
   $('hint-btn').className = 'hint-pill';
-  $('hint-btn').textContent = item.lang === 'sr' ? 'Hint: show infinitive' : 'Hint: show dictionary form';
+  $('hint-btn').textContent = (item.lang === 'sr' ? 'Hint: show infinitive' : 'Hint: show dictionary form') + (test ? ' (counts as missed)' : '');
   $('feedback').hidden = true;
   $('conj').hidden = true;
   $('hint-btn').disabled = false;
@@ -86,7 +92,14 @@ function submit(reveal = false) {
   if (!reveal && !raw.trim()) return shake();
 
   const outcome = check(current.item, raw, state.settings);
-  const failed = store.record(state, current.item, outcome, raw, hinted);
+  let failed = [];
+  if (test) {
+    // checkpoint: scored here only — nothing goes into practice history or skills
+    test.results.push({ item: current.item, ok: outcome.result !== 'wrong' && !hinted,
+                        error: outcome.error, hinted, answer: raw.trim(), expected: outcome.expected });
+  } else {
+    failed = store.record(state, current.item, outcome, raw, hinted);
+  }
   answered = true;
 
   renderSession();
@@ -166,6 +179,10 @@ function shake() {
 }
 
 function renderSession() {
+  if (test) {
+    $('session').innerHTML = `checkpoint <b>${Math.min(test.results.length + (answered ? 0 : 1), test.items.length)}</b>/${test.items.length}`;
+    return;
+  }
   const list = store.sessionAttempts(state);
   const ok = list.filter(a => a.ok).length;
   let run = 0;
@@ -174,6 +191,83 @@ function renderSession() {
     ? `<b>${ok}</b>/${list.length}${run >= 3 ? ` · 🔥${run}` : ''}`
     : '';
 }
+
+// ---------- weekly checkpoint ----------
+
+// Older checkpoints (before they were per language) may cover both.
+const checkpointLang = c => c.lang || (Object.keys(c.byLang).length === 1 ? Object.keys(c.byLang)[0] : 'mix');
+
+function renderTestBar() {
+  $('test-bar').innerHTML = test
+    ? `<span>🏁 ${LANGS[test.lang].name} checkpoint — not saved to practice</span><button type="button" class="btn ghost" id="test-quit">Quit</button>`
+    : `<span class="test-label">🏁 Weekly checkpoint · ${CHECKPOINT_SIZE}</span>` +
+      ['sr', 'mk'].map(l => `<button type="button" class="btn test-start" data-lang="${l}" data-test="${l}">${LANGS[l].name}</button>`).join('');
+  $('langpick').classList.toggle('locked', !!test);
+  renderSession();
+}
+
+// One language per checkpoint, so Serbian and Macedonian are tracked separately.
+function startTest(lang) {
+  const items = buildCheckpoint({ ...state.settings, langs: [lang] });
+  if (!items.length) return;
+  test = { lang, items, results: [] };
+  current = null;
+  window.scrollTo(0, 0);
+  next();
+}
+
+function quitTest() {
+  if (test.results.length && !confirm('Quit the checkpoint? This attempt won’t be saved.')) return;
+  test = null;
+  current = null;
+  next();
+}
+
+function finishTest() {
+  const lang = test.lang;
+  const sum = { ...summarize(test.results), lang };
+  const prev = state.checkpoints.filter(c => checkpointLang(c) === lang).at(-1);
+  store.saveCheckpoint(state, sum);
+  const casualLang = store.stats(state, 7).byLang.get(lang);
+  const casual = casualLang ? casualLang.ok / casualLang.n : null;
+  const results = test.results;
+  test = null;
+  current = null;
+  $('card').hidden = true;
+  renderTestBar();
+
+  const acc = sum.ok / sum.n;
+  const vs = (label, other) => other == null ? '' :
+    `<div class="vs"><span>${label}</span><b>${pct(other)}</b>${delta(acc, other, true)}</div>`;
+  const misses = results.filter(r => !r.ok);
+  const errs = Object.entries(sum.errors).sort((a, b) => b[1] - a[1]);
+  $('test-result').innerHTML = `
+    <div class="panel result">
+      <h2>${LANGS[lang].name} checkpoint</h2>
+      <div class="score"><b>${sum.ok}</b><span>/ ${sum.n}</span><em>${pct(acc)}</em></div>
+      ${vs('last checkpoint', prev && prev.ok / prev.n)}
+      ${vs('casual practice, last 7 days', casual)}
+    </div>
+    <div class="panel"><h2>By tense</h2>${bars(Object.keys(TENSES).filter(t => sum.byTense[t]).map(t => ({
+      ...accRow(`<span class="dot" data-tense="${t}"></span>${TENSES[t].en}`, sum.byTense[t]), color: `var(--${t})` })), { fmt: accFmt })}</div>
+    ${errs.length ? `<div class="panel"><h2>What tripped you up</h2>${bars(errs.map(([e, n]) => ({
+      label: e === 'hint' ? 'Used the hint' : ERROR_TYPES[e] || e, value: n, n })), { max: errs[0][1], fmt: r => `<b>${r.n}</b>` })}</div>` : ''}
+    ${misses.length ? `<div class="panel"><h2>Misses</h2><ul class="mistakes">${misses.map(r => `
+      <li><div class="q">${describe(r.item)}</div>
+      <div class="a">${r.answer ? `<s>${esc(r.answer)}</s> → ` : ''}<b>${esc(r.expected)}</b>${r.hinted ? ' <span class="tag">used hint</span>' : ''}</div></li>`).join('')}</ul></div>` : ''}
+    <button type="button" class="btn wide primary" id="test-done">Back to practice</button>`;
+  $('test-result').hidden = false;
+  window.scrollTo(0, 0);
+}
+
+$('test-bar').addEventListener('click', e => {
+  const lang = e.target.closest('[data-test]')?.dataset.test;
+  if (lang) startTest(lang);
+  if (e.target.id === 'test-quit') quitTest();
+});
+$('test-result').addEventListener('click', e => {
+  if (e.target.id === 'test-done') { $('test-result').hidden = true; next(); }
+});
 
 function startSession() {
   store.newSession(state);
@@ -203,7 +297,7 @@ function renderLangPick() {
 
 $('langpick').addEventListener('click', e => {
   const b = e.target.closest('button');
-  if (!b) return;
+  if (!b || test) return;
   state.settings.langs = b.dataset.l === 'mix' ? ['sr', 'mk'] : [b.dataset.l];
   store.save(state);
   renderLangPick();
@@ -243,6 +337,21 @@ function renderStats() {
   }
 
   html += weeklyPanel();
+
+  if (state.checkpoints.length) {
+    html += `<div class="panel"><h2>Checkpoints</h2><p class="sub">weekly tests, per language — kept separate from practice</p>`;
+    for (const l of ['sr', 'mk', 'mix']) {
+      const cps = state.checkpoints.filter(c => checkpointLang(c) === l).slice(-8).reverse();
+      if (!cps.length) continue;
+      html += `<p class="sub cp-lang">${l === 'mix' ? 'Mixed (older)' : LANGS[l].name}</p>` +
+        bars(cps.map((c, i) => ({
+          label: new Date(c.t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+          value: c.ok / c.n, n: c.n, ok: c.ok, prev: cps[i + 1], color: l === 'mix' ? null : `var(--${l})`,
+        })), { fmt: r => `<b>${r.ok}/${r.n}</b> · ${pct(r.value)}${r.prev ? ' ' + delta(r.value, r.prev.ok / r.prev.n, true) : ''}` });
+    }
+    html += `</div>`;
+  }
+
 
   if (!s.total) {
     body.innerHTML = html + `<div class="panel"><p class="note" style="margin:0">No answers in this period yet. Go practise — this fills in as you go.</p></div>`;
